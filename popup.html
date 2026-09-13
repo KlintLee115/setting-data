@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GHL Call Log</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172033; background: #f7f9fc; }
+    * { box-sizing: border-box; }
+    body { width: 520px; max-height: 760px; margin: 0; overflow-y: auto; background: #f7f9fc; }
+    main { min-height: 100%; padding: 20px; }
+    header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    h1 { margin: 0; font-size: 18px; line-height: 1.2; }
+    .subtitle { margin: 5px 0 0; color: #718096; font-size: 12px; }
+    .count { min-width: 34px; padding: 6px 8px; border-radius: 999px; background: #e5edf8; color: #245a95; font-size: 12px; font-weight: 700; text-align: center; }
+    .toolbar { display: flex; gap: 8px; margin-bottom: 14px; }
+    select, button { min-height: 34px; border: 1px solid #d8e0eb; border-radius: 7px; background: #ffffff; color: #29364a; font: inherit; font-size: 12px; }
+    select { flex: 1; padding: 0 9px; }
+    button { padding: 0 10px; cursor: pointer; font-weight: 700; }
+    button:hover { background: #f0f4f9; }
+    button:focus-visible, select:focus-visible { outline: 3px solid rgba(49, 130, 206, .25); outline-offset: 1px; }
+    .section-title { margin: 18px 0 9px; color: #29364a; font-size: 12px; }
+    .entry-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; border: 1px solid #e1e7ef; border-radius: 9px; background: #ffffff; }
+    .entry-form label { display: grid; gap: 4px; color: #718096; font-size: 10px; font-weight: 700; }
+    .entry-form input { width: 100%; min-height: 32px; padding: 0 8px; border: 1px solid #d8e0eb; border-radius: 6px; color: #29364a; font: inherit; font-size: 11px; }
+    .entry-form input:focus { outline: 3px solid rgba(49, 130, 206, .2); outline-offset: 1px; }
+    .entry-form select, .entry-form textarea { width: 100%; min-height: 32px; padding: 0 8px; border: 1px solid #d8e0eb; border-radius: 6px; color: #29364a; font: inherit; font-size: 11px; }
+    .entry-form textarea { min-height: 58px; padding-top: 8px; resize: vertical; }
+    .import-box { display: grid; gap: 8px; padding: 12px; border: 1px solid #e1e7ef; border-radius: 9px; background: #ffffff; }
+    .import-box textarea { width: 100%; min-height: 96px; padding: 8px; border: 1px solid #d8e0eb; border-radius: 6px; color: #29364a; font: inherit; font-size: 11px; resize: vertical; }
+    .import-box button { color: #245a95; border-color: #b8cbe2; }
+    .import-status { min-height: 14px; color: #718096; font-size: 10px; }
+    .entry-form .full-width { grid-column: 1 / -1; }
+    .form-heading { grid-column: 1 / -1; margin: 5px 0 0; color: #245a95; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+    .conditional { display: none; }
+    .stage { display: grid; grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stage-heading { grid-column: 1 / -1; margin: 5px 0 0; color: #245a95; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+    .entry-form button { grid-column: 1 / -1; color: #ffffff; border-color: #245a95; background: #245a95; }
+    .entry-form button:hover { background: #1d4d80; }
+    .entry-form .secondary { color: #245a95; border-color: #b8cbe2; background: #ffffff; }
+    .entry-form .secondary:hover { background: #f0f4f9; }
+    .summary-controls { display: flex; gap: 8px; margin-bottom: 9px; }
+    .summary-controls input { flex: 1; min-height: 34px; padding: 0 9px; border: 1px solid #d8e0eb; border-radius: 7px; color: #29364a; font: inherit; font-size: 12px; }
+    .daily-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 9px; }
+    .daily-stat { min-width: 0; padding: 9px 5px; border: 1px solid #e1e7ef; border-radius: 7px; background: #ffffff; text-align: center; }
+    .daily-stat-value { display: block; color: #172033; font-size: 16px; font-weight: 700; }
+    .daily-stat-label { display: block; overflow: hidden; margin-top: 3px; color: #718096; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+    .summary-wrap { overflow: hidden; border: 1px solid #e1e7ef; border-radius: 9px; background: #ffffff; }
+    .summary-table tbody { max-height: 250px; }
+    .summary-table th:nth-child(1), .summary-table td:nth-child(1) { width: 42%; }
+    .summary-table th:nth-child(2), .summary-table td:nth-child(2), .summary-table th:nth-child(3), .summary-table td:nth-child(3) { width: 19%; text-align: center; }
+    .summary-table th:nth-child(4), .summary-table td:nth-child(4) { width: 20%; text-align: right; }
+    .rate { font-weight: 700; }
+    .table-wrap { overflow: hidden; border: 1px solid #e1e7ef; border-radius: 9px; background: #ffffff; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid #edf1f6; text-align: left; vertical-align: middle; }
+    th { color: #718096; background: #fbfcfe; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    th button { min-height: 0; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; font-size: inherit; font-weight: inherit; letter-spacing: inherit; text-align: left; text-transform: inherit; }
+    th button:hover { color: #245a95; background: transparent; }
+    td { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    th:nth-child(1), td:nth-child(1) { width: 22%; }
+    th:nth-child(2), td:nth-child(2) { width: 27%; }
+    th:nth-child(3), td:nth-child(3) { width: 29%; }
+    th:nth-child(4), td:nth-child(4) { width: 22%; }
+    tbody { display: block; max-height: 280px; overflow-y: auto; }
+    thead, tbody tr { display: table; width: 100%; table-layout: fixed; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .status { display: inline-block; padding: 4px 6px; border-radius: 5px; font-size: 10px; font-weight: 700; }
+    .status.picked-up { color: #17633f; background: #e1f4eb; }
+    .status.no-answer { color: #9b3034; background: #fae5e6; }
+    .empty { padding: 28px 14px; color: #718096; font-size: 12px; text-align: center; }
+    .cell-stack { display: grid; gap: 3px; min-width: 0; }
+    .cell-main { overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .cell-sub { overflow: hidden; color: #718096; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .row-actions { display: flex; justify-content: flex-start; gap: 2px; white-space: nowrap; }
+    .row-actions button { min-height: 25px; padding: 3px 4px; border: 1px solid #d8e0eb; border-radius: 5px; background: #ffffff; color: #245a95; cursor: pointer; font: inherit; font-size: 9px; font-weight: 700; }
+    .row-actions .delete { color: #ae373b; border-color: #f0c9cb; }
+    .entry-type { display: inline-block; margin-top: 3px; color: #718096; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Call log</h1>
+        <p class="subtitle">Local activity from GoHighLevel</p>
+      </div>
+      <span class="count" id="count">0</span>
+    </header>
+    <div class="toolbar">
+      <select id="date-filter" aria-label="Filter by date">
+        <option value="all">All time</option>
+        <option value="today">Today</option>
+      </select>
+      <button id="backup-data" type="button">Backup JSON</button>
+      <button id="restore-data" type="button">Restore JSON</button>
+      <input id="restore-file" type="file" accept="application/json" hidden>
+    </div>
+    <h2 class="section-title">Import conversation</h2>
+    <div class="import-box">
+      <textarea id="conversation-text" placeholder="Paste one GHL conversation here..."></textarea>
+      <button id="analyze-conversation" type="button">Analyze conversation</button>
+      <span class="import-status" id="import-status" aria-live="polite"></span>
+    </div>
+    <h2 class="section-title">Add entry</h2>
+    <form class="entry-form" id="manual-entry-form">
+      <div class="stage">
+        <p class="stage-heading">1. Lead info</p>
+        <label class="full-width">Full Name<input name="fullName" type="text" autocomplete="name" required></label>
+        <label class="full-width">Email<input name="email" type="email" autocomplete="email"></label>
+        <label class="full-width">Phone<input name="phone" type="tel" autocomplete="tel"></label>
+        <p class="stage-heading">2. Phone</p>
+        <label class="full-width">Picked up?<select id="phone-picked-up" name="phonePickedUp" required><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
+        <label class="full-width">Call date/time<input name="callDateTime" type="datetime-local" required></label>
+        <label class="conditional" data-show-when="phone-picked-up=Yes">Call duration<input name="callDuration" type="text" placeholder="MM:SS"></label>
+        <label class="conditional full-width" data-show-when="phone-picked-up=No">Last text message sent<textarea name="lastTextMessage" placeholder="Paste the last message you sent"></textarea></label>
+      </div>
+      <div class="stage conditional" data-show-when="phone-picked-up=Yes">
+        <p class="stage-heading">3. Qualification</p>
+        <label>Disqualified?<select id="disqualified" name="disqualified"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
+        <label class="conditional" data-show-when="disqualified=Yes">Reason<input name="disqualificationReason" type="text"></label>
+      </div>
+      <div class="stage conditional" data-show-when="phone-picked-up=Yes&disqualified=No">
+        <p class="stage-heading">4. Pitch</p>
+        <label class="full-width">Were you able to pitch?<select id="pitched" name="pitched"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
+      </div>
+      <div class="stage conditional" data-show-when="phone-picked-up=Yes&disqualified=No&pitched=Yes">
+        <p class="stage-heading">5. Setting</p>
+        <label class="full-width">Were you able to set?<select id="was-set" name="wasSet"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
+        <label class="conditional" data-show-when="was-set=Yes">Closer<input name="closer" type="text"></label>
+        <label class="conditional" data-show-when="was-set=Yes">Appointment date/time<input name="appointmentDate" type="datetime-local"></label>
+      </div>
+      <div class="stage conditional" id="conversation-outcome">
+        <p class="stage-heading">Conversation outcome</p>
+        <label class="full-width">Why did they leave?<select id="leave-reason" name="leaveReason"><option value="">Select</option><option value="Had to go">Had to go</option><option value="Objection">Objection</option></select></label>
+      </div>
+      <label class="full-width">Notes<textarea name="notes" placeholder="Relevant context, objections, or follow-up"></textarea></label>
+      <button id="save-entry" type="submit">Save entry</button>
+      <button class="secondary" id="clear-form" type="button">Clear form</button>
+      <button class="secondary" id="cancel-edit" type="button" hidden>Cancel edit</button>
+    </form>
+    <h2 class="section-title">Entries</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th><button type="button" data-sort="date">Date / time</button></th><th><button type="button" data-sort="name">Name / email</button></th><th><button type="button" data-sort="status">Status / details</button></th><th>Actions</th></tr></thead>
+        <tbody id="log-body"></tbody>
+      </table>
+    </div>
+    <h2 class="section-title">Daily summary</h2>
+    <div class="summary-controls">
+      <input id="summary-date" type="date" aria-label="Summary date">
+    </div>
+    <div class="daily-stats">
+      <div class="daily-stat"><span class="daily-stat-value" id="daily-calls">0</span><span class="daily-stat-label">Calls</span></div>
+      <div class="daily-stat"><span class="daily-stat-value" id="daily-pickups">0</span><span class="daily-stat-label">Pick Ups</span></div>
+      <div class="daily-stat"><span class="daily-stat-value" id="daily-disqualified">0</span><span class="daily-stat-label">Disqualified</span></div>
+      <div class="daily-stat"><span class="daily-stat-value" id="daily-pitches">0</span><span class="daily-stat-label">Pitches</span></div>
+      <div class="daily-stat"><span class="daily-stat-value" id="daily-appointments">0</span><span class="daily-stat-label">Appts. Set</span></div>
+      <div class="daily-stat"><span class="daily-stat-value" id="daily-no-answers">0</span><span class="daily-stat-label">No Answers</span></div>
+      <div class="daily-stat"><span class="daily-stat-value" id="daily-objections">0</span><span class="daily-stat-label">Objections</span></div>
+      <div class="daily-stat"><span class="daily-stat-value" id="daily-had-to-go">0</span><span class="daily-stat-label">Had To Go</span></div>
+      <div class="daily-stat"><span class="daily-stat-value" id="daily-pitch-rate">-</span><span class="daily-stat-label">Pitch Rate</span></div>
+      <div class="daily-stat"><span class="daily-stat-value" id="daily-set-rate">-</span><span class="daily-stat-label">Set Rate</span></div>
+      <div class="daily-stat"><span class="daily-stat-value" id="daily-average-duration">-</span><span class="daily-stat-label">Avg. Duration</span></div>
+    </div>
+    <h2 class="section-title">Pickup rate tracker</h2>
+    <div class="summary-wrap">
+      <table class="summary-table">
+        <thead><tr><th>Local time</th><th>Calls</th><th>Picked up</th><th>Rate</th></tr></thead>
+        <tbody id="pickup-summary-body"></tbody>
+      </table>
+    </div>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

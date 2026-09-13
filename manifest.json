@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "GHL Call Log",
+  "version": "1.0.0",
+  "description": "Log GoHighLevel call outcomes locally and export them as CSV.",
+  "permissions": [
+    "storage"
+  ],
+  "action": {
+    "default_title": "GHL Call Log",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://app.gohighlevel.com/*",
+        "https://*.gohighlevel.com/*",
+        "https://*.msgsndr.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
