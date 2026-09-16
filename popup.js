@@ -16,6 +16,7 @@ const dailySetRate = document.getElementById('daily-set-rate');
 const dailyAverageDuration = document.getElementById('daily-average-duration');
 const conversationText = document.getElementById('conversation-text');
 const importStatus = document.getElementById('import-status');
+const callChoices = document.getElementById('call-choices');
 const saveEntryButton = document.getElementById('save-entry');
 const clearFormButton = document.getElementById('clear-form');
 const cancelEditButton = document.getElementById('cancel-edit');
@@ -23,6 +24,7 @@ const cancelEditButton = document.getElementById('cancel-edit');
 let logs = [];
 let manualEntries = [];
 let editingEntry = null;
+let pendingCallRecords = [];
 let entrySort = { key: 'date', direction: 'desc' };
 const DRAFT_KEY = 'conversationDraft';
 const IMPORT_SEED_KEY = 'importedNoShowSeeded';
@@ -69,6 +71,38 @@ async function restoreData(event) {
 document.getElementById('backup-data').addEventListener('click', backupData);
 document.getElementById('restore-data').addEventListener('click', () => document.getElementById('restore-file').click());
 document.getElementById('restore-file').addEventListener('change', restoreData);
+document.getElementById('import-call-record').addEventListener('click', () => document.getElementById('call-record-file').click());
+
+document.getElementById('call-record-file').addEventListener('change', (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (loadEvent) => {
+    try {
+      const record = JSON.parse(loadEvent.target.result);
+      if (record?.format !== 'sales-call-record-v1'
+        || typeof record.name !== 'string'
+        || !['Yes', 'No'].includes(record.phonePickedUp)
+        || typeof record.callDateTime !== 'string') {
+        throw new Error('This is not a valid call record export.');
+      }
+      setFormValue('fullName', record.name);
+      setFormValue('phonePickedUp', record.phonePickedUp);
+      setFormValue('callDateTime', record.callDateTime.slice(0, 16));
+      setFormValue('callDuration', record.callDuration || '');
+      conversationText.value = '';
+      pendingCallRecords = [];
+      renderCallChoices();
+      updateConditionalFields();
+      importStatus.textContent = 'Call metadata imported. Review before saving.';
+      saveFormDraft();
+    } catch (error) {
+      importStatus.textContent = `Could not import call record: ${error.message}`;
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+});
 
 function getUnifiedEntries() {
   return [
@@ -142,6 +176,36 @@ function extractCallDuration(text) {
   return match ? match[2] : '';
 }
 
+function renderCallChoices() {
+  callChoices.replaceChildren();
+  if (pendingCallRecords.length < 2) {
+    callChoices.style.display = 'none';
+    return;
+  }
+  pendingCallRecords.forEach((record) => {
+    const label = document.createElement('label');
+    const checkbox = document.createElement('input');
+    const detail = document.createElement('div');
+    const title = document.createElement('strong');
+    const summary = document.createElement('span');
+    checkbox.type = 'checkbox';
+    checkbox.checked = record.selected;
+    checkbox.dataset.callId = record.id;
+    checkbox.addEventListener('change', () => {
+      record.selected = checkbox.checked;
+      const selectedCount = pendingCallRecords.filter((item) => item.selected).length;
+      importStatus.textContent = `${selectedCount} call record${selectedCount === 1 ? '' : 's'} selected.`;
+    });
+    title.textContent = `Call ${pendingCallRecords.indexOf(record) + 1} - ${record.status}`;
+    summary.textContent = `${formatDateTime(record.callDateTime)} | Duration: ${record.callDuration || '-'}`;
+    detail.append(title, summary);
+    label.className = 'call-choice';
+    label.append(checkbox, detail);
+    callChoices.appendChild(label);
+  });
+  callChoices.style.display = 'grid';
+}
+
 function limitTranscript(value) {
   if (value.length <= MAX_TRANSCRIPT_LENGTH) {
     return value;
@@ -195,12 +259,14 @@ async function restoreFormDraft() {
 
 function extractConversationData(text) {
   const data = {};
+  const firstLineName = typeof extractLeadName === 'function' ? extractLeadName(text) : '';
   const nameMatch = text.match(/(?:hi|hey|hello)\s+([A-Z][\w'-]+(?:\s+[A-Z][\w'-]+){1,3})[,!]/i);
   const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
   const phoneMatch = text.match(/(?:\+?\d[\d().\s-]{7,}\d)/);
   const appointmentMatch = text.match(/(?:appointment|meeting)[^\n]*?(?:at\s+)?(?:Saturday|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday)?[,]?\s+([A-Z][a-z]+\s+\d{1,2},\s+\d{4})[^\n]*?(\d{1,2}:\d{2}\s*[AP]M)/i);
 
-  if (nameMatch) data.fullName = nameMatch[1].trim();
+  if (firstLineName) data.fullName = firstLineName;
+  else if (nameMatch) data.fullName = nameMatch[1].trim();
   if (emailMatch) data.email = emailMatch[0];
   if (phoneMatch) data.phone = phoneMatch[0].replace(/\s+/g, ' ').trim();
   if (appointmentMatch) {
@@ -248,12 +314,23 @@ function populateFromConversation() {
     importStatus.textContent = 'Paste a conversation first.';
     return;
   }
+  pendingCallRecords = extractCallRecords(text).map((record) => ({ ...record, selected: true }));
+  renderCallChoices();
   const data = extractConversationData(text);
+  if (pendingCallRecords.length) {
+    const firstCall = pendingCallRecords[0];
+    data.phonePickedUp = firstCall.phonePickedUp;
+    data.callDateTime = firstCall.callDateTime;
+    data.callDuration = firstCall.callDuration;
+  }
   Object.entries(data).forEach(([name, value]) => setFormValue(name, value));
   updateConditionalFields();
   const detected = Object.keys(data).length;
   const detectedFields = Object.keys(data).join(', ');
-  importStatus.textContent = `Detected ${detected} field${detected === 1 ? '' : 's'}: ${detectedFields || 'none'}. Review before saving.`;
+  const callMessage = pendingCallRecords.length > 1
+    ? ` ${pendingCallRecords.length} call records found; choose which to save.`
+    : '';
+  importStatus.textContent = `Detected ${detected} field${detected === 1 ? '' : 's'}: ${detectedFields || 'none'}. Review before saving.${callMessage}`;
   saveFormDraft();
 }
 
@@ -580,6 +657,8 @@ function startEditing(entry) {
 
 function resetEntryForm() {
   editingEntry = null;
+  pendingCallRecords = [];
+  renderCallChoices();
   document.getElementById('manual-entry-form').reset();
   conversationText.value = '';
   importStatus.textContent = '';
@@ -613,6 +692,11 @@ document.getElementById('manual-entry-form').addEventListener('submit', async (e
   event.preventDefault();
   const form = event.currentTarget;
   const entry = getEntryFormData(form);
+  const selectedCallRecords = pendingCallRecords.filter((record) => record.selected);
+  if (!editingEntry && pendingCallRecords.length > 1 && !selectedCallRecords.length) {
+    importStatus.textContent = 'Select at least one call record to save.';
+    return;
+  }
   const entryWithCallTime = {
     ...entry,
     createdAt: editingEntry
@@ -651,7 +735,20 @@ document.getElementById('manual-entry-form').addEventListener('submit', async (e
     }
     await persistEntries();
   } else {
-    manualEntries.push({ ...entry, id: createEntryId(), createdAt: new Date().toISOString() });
+    const recordsToSave = selectedCallRecords.length ? selectedCallRecords : [null];
+    recordsToSave.forEach((record) => {
+      manualEntries.push({
+        ...entry,
+        ...(record ? {
+          phonePickedUp: record.phonePickedUp,
+          callDateTime: record.callDateTime,
+          callDuration: record.callDuration,
+          status: record.phonePickedUp === 'Yes' ? 'Picked Up' : 'No Answer'
+        } : {}),
+        id: createEntryId(),
+        createdAt: new Date().toISOString()
+      });
+    });
     await persistEntries();
   }
   await chrome.storage.local.remove(DRAFT_KEY);

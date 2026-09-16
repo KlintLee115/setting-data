@@ -2,6 +2,7 @@
   const ROOT_ID = 'ghl-call-log-root';
   const POLL_INTERVAL = 750;
   const headerSelectors = [
+    '[data-testid="CENTRALPANEL_NAME"]',
     '[data-testid*="conversation"] h1',
     '[data-testid*="conversation"] h2',
     '[data-testid*="contact"] h1',
@@ -16,16 +17,22 @@
   let currentName = '';
   let overlayVisible = false;
   let lastUrl = window.location.href;
+  let host = null;
 
   function normalizeName(value) {
-    return value.replace(/\\s+/g, ' ').trim();
+    return value.replace(/\s+/g, ' ').replace(/\s+\.$/, '').trim();
+  }
+
+  function isLikelyLeadName(value) {
+    return /^[A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){1,3}$/.test(value)
+      && !/^(conversation|messages|inbox|contacts?)$/i.test(value);
   }
 
   function getLeadName() {
     for (const selector of headerSelectors) {
       const element = document.querySelector(selector);
       const name = element ? normalizeName(element.textContent || '') : '';
-      if (name && name.length <= 120) {
+      if (name && name.length <= 120 && isLikelyLeadName(name)) {
         return name;
       }
     }
@@ -33,7 +40,7 @@
     const headings = [...document.querySelectorAll('h1, h2, [role="heading"]')];
     const heading = headings
       .map((element) => normalizeName(element.textContent || ''))
-      .find((text) => text && text.length <= 120 && !/conversation|messages|inbox/i.test(text));
+      .find((text) => text && text.length <= 120 && isLikelyLeadName(text));
 
     return heading || '';
   }
@@ -42,46 +49,47 @@
     return `${window.location.pathname}|${window.location.search}|${name.toLowerCase()}`;
   }
 
+  function saveCallSafely(status) {
+    void Promise.resolve()
+      .then(() => saveCall(status))
+      .catch((error) => {
+        if (!/extension context invalidated/i.test(String(error?.message || error))) {
+          console.error('Could not save call:', error);
+        }
+      });
+  }
+
   function ensureOverlay() {
-    let host = document.getElementById(ROOT_ID);
     if (host) {
       return host;
     }
 
     host = document.createElement('div');
     host.id = ROOT_ID;
-    host.style.position = 'fixed';
-    host.style.zIndex = '2147483647';
-    host.style.inset = 'auto 20px 20px auto';
-    document.documentElement.appendChild(host);
-
-    const shadow = host.attachShadow({ mode: 'open' });
-    shadow.innerHTML = `
+    host.style.cssText = 'position:fixed;right:20px;bottom:20px;z-index:2147483647;display:none;';
+    host.attachShadow({ mode: 'open' });
+    host.shadowRoot.innerHTML = `
       <style>
-        :host { all: initial; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-        .panel { width: 290px; box-sizing: border-box; padding: 16px; color: #172033; background: #ffffff; border: 1px solid #e1e7ef; border-radius: 12px; box-shadow: 0 12px 35px rgba(20, 34, 58, .18); }
-        .eyebrow { margin: 0 0 5px; color: #718096; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-        .name { margin: 0 0 14px; overflow: hidden; color: #172033; font-size: 16px; font-weight: 700; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
-        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        button { min-height: 38px; padding: 8px 10px; border: 0; border-radius: 8px; color: #ffffff; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; transition: transform .15s ease, filter .15s ease; }
-        button:hover { filter: brightness(.96); transform: translateY(-1px); }
-        button:focus-visible { outline: 3px solid rgba(49, 130, 206, .35); outline-offset: 2px; }
-        .picked-up { background: #21835b; }
-        .no-answer { background: #c24145; }
+        .panel { display: grid; gap: 8px; min-width: 180px; padding: 12px; border: 1px solid #d8e0eb; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px rgba(23, 32, 51, .18); color: #172033; font: 12px Segoe UI, sans-serif; }
+        .name { overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        button { min-height: 30px; border: 1px solid #b8cbe2; border-radius: 5px; background: #fff; color: #245a95; cursor: pointer; font: inherit; font-weight: 700; }
+        button:hover { background: #f0f4f9; }
       </style>
-      <section class="panel" role="dialog" aria-label="Log call outcome">
-        <p class="eyebrow">Log call outcome</p>
-        <p class="name"></p>
+      <div class="panel">
+        <div class="name"></div>
         <div class="actions">
-          <button class="picked-up" type="button" data-status="Picked Up">Picked Up</button>
-          <button class="no-answer" type="button" data-status="No Answer">No Answer</button>
+          <button class="picked-up" type="button">Picked up</button>
+          <button class="no-answer" type="button">No answer</button>
         </div>
-      </section>
-    `;
-
-    shadow.querySelectorAll('button').forEach((button) => {
-      button.addEventListener('click', () => saveCall(button.dataset.status));
+      </div>`;
+    host.shadowRoot.querySelector('.picked-up').addEventListener('click', () => {
+      saveCallSafely('Picked Up');
     });
+    host.shadowRoot.querySelector('.no-answer').addEventListener('click', () => {
+      saveCallSafely('No Answer');
+    });
+    document.documentElement.appendChild(host);
     return host;
   }
 
