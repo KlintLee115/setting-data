@@ -27,6 +27,7 @@ let editingEntry = null;
 let pendingCallRecords = [];
 let entrySort = { key: 'date', direction: 'desc' };
 const DRAFT_KEY = 'conversationDraft';
+const PENDING_LEAD_KEY = 'pendingLead';
 const IMPORT_SEED_KEY = 'importedNoShowSeeded';
 const ENTRIES_KEY = 'entries';
 const DISPLAY_TIME_ZONE = 'America/Denver';
@@ -255,6 +256,25 @@ async function restoreFormDraft() {
   }
   updateConditionalFields();
   importStatus.textContent = 'Draft restored. Review before saving.';
+}
+
+async function restorePendingLead() {
+  const stored = await chrome.storage.local.get({ [PENDING_LEAD_KEY]: null });
+  const pendingLead = stored[PENDING_LEAD_KEY];
+  const nameField = document.querySelector('[name="fullName"]');
+  if (!pendingLead || !nameField) {
+    return;
+  }
+  if (pendingLead.fullName && !nameField.value.trim()) {
+    nameField.value = pendingLead.fullName;
+  }
+  if (pendingLead.callDateTime) {
+    setFormValue('callDateTime', pendingLead.callDateTime);
+  }
+  if (pendingLead.fullName) {
+    importStatus.textContent = `Lead detected: ${pendingLead.fullName}. Review before saving.`;
+  }
+  await saveFormDraft();
 }
 
 function extractConversationData(text) {
@@ -830,4 +850,4 @@ document.querySelectorAll('[data-sort]').forEach((button) => {
     render();
   });
 });
-restoreFormDraft().then(loadLogs);
+restoreFormDraft().then(restorePendingLead).then(loadLogs);

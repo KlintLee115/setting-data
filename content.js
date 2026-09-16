@@ -1,6 +1,7 @@
 (() => {
   const ROOT_ID = 'ghl-call-log-root';
   const POLL_INTERVAL = 750;
+  const PENDING_LEAD_KEY = 'pendingLead';
   const headerSelectors = [
     '[data-testid="CENTRALPANEL_NAME"]',
     '[data-testid*="conversation"] h1',
@@ -59,6 +60,27 @@
       });
   }
 
+  function getLocalDateTimeValue(date = new Date()) {
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - offset * 60 * 1000);
+    return localDate.toISOString().slice(0, 16);
+  }
+
+  function publishLeadSafely(name, callDateTime = '') {
+    void chrome.storage.local.set({
+      [PENDING_LEAD_KEY]: {
+        fullName: name,
+        callDateTime,
+        sourceUrl: window.location.href,
+        updatedAt: new Date().toISOString()
+      }
+    }).catch((error) => {
+      if (!/extension context invalidated/i.test(String(error?.message || error))) {
+        console.error('Could not publish lead:', error);
+      }
+    });
+  }
+
   function ensureOverlay() {
     if (host) {
       return host;
@@ -98,6 +120,8 @@
       return;
     }
 
+    const callDateTime = getLocalDateTimeValue();
+    publishLeadSafely(currentName, callDateTime);
     const stored = await chrome.storage.local.get({ entries: [], callLogs: [], manualEntries: [] });
     const entries = Array.isArray(stored.entries) && stored.entries.length
       ? stored.entries
@@ -113,7 +137,7 @@
       name: currentName,
       status,
       phonePickedUp: status === 'Picked Up' ? 'Yes' : 'No',
-      callDateTime: timestamp,
+      callDateTime,
       callDuration: durationMatch ? durationMatch[2] : '',
       timestamp
     };
@@ -142,6 +166,7 @@
       currentContactKey = contactKey;
       currentName = name;
       overlayVisible = true;
+      publishLeadSafely(name);
     } else if (!contactKey) {
       currentName = '';
       overlayVisible = false;

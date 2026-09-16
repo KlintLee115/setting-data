@@ -47,6 +47,9 @@ function loadContentScript(storageGetError) {
         local: {
           get() {
             return Promise.reject(storageGetError);
+          },
+          set() {
+            return Promise.resolve();
           }
         }
       }
