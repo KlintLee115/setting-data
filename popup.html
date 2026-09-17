@@ -20,6 +20,9 @@
     button:hover { background: #f0f4f9; }
     button:focus-visible, select:focus-visible { outline: 3px solid rgba(49, 130, 206, .25); outline-offset: 1px; }
     .section-title { margin: 18px 0 9px; color: #29364a; font-size: 12px; }
+    .settings-panel { display: grid; gap: 10px; margin-bottom: 12px; padding: 12px; border: 1px solid #e1e7ef; border-radius: 9px; background: #ffffff; }
+    .settings-panel label { display: grid; gap: 4px; color: #718096; font-size: 10px; font-weight: 700; }
+    .settings-panel select { width: 100%; min-height: 32px; padding: 0 8px; border: 1px solid #d8e0eb; border-radius: 6px; color: #29364a; font: inherit; font-size: 11px; }
     .entry-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; border: 1px solid #e1e7ef; border-radius: 9px; background: #ffffff; }
     .entry-form label { display: grid; gap: 4px; color: #718096; font-size: 10px; font-weight: 700; }
     .entry-form input { width: 100%; min-height: 32px; padding: 0 8px; border: 1px solid #d8e0eb; border-radius: 6px; color: #29364a; font: inherit; font-size: 11px; }
@@ -103,6 +106,18 @@
       <button id="import-call-record" type="button">Import Call Record</button>
       <input id="call-record-file" type="file" accept="application/json" hidden>
     </div>
+    <div class="settings-panel">
+      <label>
+        Default customer timezone
+        <select id="default-time-zone" aria-label="Default customer timezone">
+          <option value="America/Denver">Mountain (MDT)</option>
+          <option value="America/Los_Angeles">Pacific (PDT)</option>
+          <option value="America/Chicago">Central (CDT)</option>
+          <option value="America/New_York">Eastern (EDT)</option>
+          <option value="UTC">UTC</option>
+        </select>
+      </label>
+    </div>
     <h2 class="section-title">Import conversation</h2>
     <div class="import-box">
       <textarea id="conversation-text" placeholder="Paste one GHL conversation here..."></textarea>
@@ -119,7 +134,7 @@
         <label class="full-width">Phone<input name="phone" type="tel" autocomplete="tel"></label>
         <p class="stage-heading">2. Phone</p>
         <label class="full-width">Picked up?<select id="phone-picked-up" name="phonePickedUp" required><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
-        <label class="full-width">Call date/time<input name="callDateTime" type="datetime-local" required></label>
+        <label class="full-width">Call date/time (MDT)<input name="callDateTime" type="datetime-local" required></label>
         <label class="conditional" data-show-when="phone-picked-up=Yes">Call duration<input name="callDuration" type="text" placeholder="MM:SS"></label>
         <label class="conditional full-width" data-show-when="phone-picked-up=No">Last text message sent<textarea name="lastTextMessage" placeholder="Paste the last message you sent"></textarea></label>
       </div>
@@ -137,6 +152,7 @@
         <label class="full-width">Were you able to set?<select id="was-set" name="wasSet"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
         <label class="conditional" data-show-when="was-set=Yes">Closer<input name="closer" type="text"></label>
         <label class="conditional" data-show-when="was-set=Yes">Appointment date/time<input name="appointmentDate" type="datetime-local"></label>
+        <label class="conditional" data-show-when="was-set=Yes">Appointment timezone<select name="appointmentTimeZone"><option value="America/Denver">Mountain (MDT)</option><option value="America/Los_Angeles">Pacific (PDT)</option><option value="America/Chicago">Central (CDT)</option><option value="America/New_York">Eastern (EDT)</option><option value="UTC">UTC</option></select></label>
       </div>
       <div class="stage conditional" id="conversation-outcome">
         <p class="stage-heading">Conversation outcome</p>
@@ -174,11 +190,12 @@
     <h2 class="section-title">Pickup rate tracker</h2>
     <div class="summary-wrap">
       <table class="summary-table">
-        <thead><tr><th>Local time</th><th>Calls</th><th>Picked up</th><th>Rate</th></tr></thead>
+        <thead><tr><th>Mountain time (MDT)</th><th>Calls</th><th>Picked up</th><th>Rate</th></tr></thead>
         <tbody id="pickup-summary-body"></tbody>
       </table>
     </div>
   </main>
+  <script src="timezone.js"></script>
   <script src="conversation-parser.js"></script>
   <script src="popup.js"></script>
 </body>

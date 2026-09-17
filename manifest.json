@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "GHL Call Log",
   "version": "1.0.0",
-  "description": "Log GoHighLevel call outcomes locally and export them as CSV.",
+  "description": "Log GoHighLevel call outcomes locally and track daily pickup performance.",
   "permissions": [
     "storage"
   ],
