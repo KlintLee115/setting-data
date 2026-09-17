@@ -9,7 +9,7 @@ function getAppointmentLabel(appointmentInstant, now) {
 
 function getUpcomingAppointments(entries, now = new Date(), parseFollowUp = parseFollowUpDate) {
   return entries
-    .filter((entry) => entry.wasSet === 'Yes' && entry.appointmentDate)
+    .filter((entry) => entry.appointmentDate)
     .map((entry) => {
       const appointmentInstant = new Date(entry.appointmentDate);
       const followUpDate = entry.followUpDate ? parseFollowUp(entry.followUpDate) : null;

@@ -16,125 +16,34 @@ const dailyHadToGo = document.getElementById('daily-had-to-go');
 const dailyPitchRate = document.getElementById('daily-pitch-rate');
 const dailySetRate = document.getElementById('daily-set-rate');
 const dailyAverageDuration = document.getElementById('daily-average-duration');
-const conversationText = document.getElementById('conversation-text');
 const importStatus = document.getElementById('import-status');
-const callChoices = document.getElementById('call-choices');
 const saveEntryButton = document.getElementById('save-entry');
 const clearFormButton = document.getElementById('clear-form');
 const cancelEditButton = document.getElementById('cancel-edit');
+const {
+  DEFAULT_TIME_ZONE_KEY,
+  REPORTING_TIME_ZONE_KEY,
+  getDefaultAppointmentTimeZone,
+  getLocalDateTimeValue,
+  getLocalDateValue,
+  getReportingTimeZone,
+  getTimeZoneDisplayName,
+  loadDefaultAppointmentTimeZone,
+  syncDefaultAppointmentTimeZone,
+  updateCallDateTime
+} = globalThis.popupSettings;
 
 let logs = [];
 let manualEntries = [];
 let editingEntry = null;
-let pendingCallRecords = [];
 let entrySort = { key: 'date', direction: 'desc' };
-const ENTRIES_KEY = 'entries';
-const REPORTING_TIME_ZONE_KEY = 'reportingTimeZone';
-const DEFAULT_TIME_ZONE_KEY = 'defaultAppointmentTimeZone';
-const MAX_TRANSCRIPT_LENGTH = 100000;
 const popupStorage = createPopupStorage();
 
 function createEntryId() {
   return `${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}`;
 }
-async function backupData() {
-  const data = await chrome.storage.local.get(ENTRIES_KEY);
-  const blob = new Blob([JSON.stringify(data[ENTRIES_KEY], null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'backup.json';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-async function restoreData(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    try {
-      const data = JSON.parse(e.target.result);
-      if (!Array.isArray(data) || data.some((entry) => !entry || typeof entry !== 'object')) {
-        throw new Error('Backup must contain an array of entries.');
-      }
-      await chrome.storage.local.set({ [ENTRIES_KEY]: data });
-      alert('Data restored successfully.');
-      location.reload();
-    } catch (error) {
-      alert(`Could not restore backup: ${error.message}`);
-    }
-  };
-  reader.readAsText(file);
-}
-
-document.getElementById('backup-data').addEventListener('click', backupData);
-document.getElementById('restore-data').addEventListener('click', () => document.getElementById('restore-file').click());
-document.getElementById('restore-file').addEventListener('change', restoreData);
-document.getElementById('import-call-record').addEventListener('click', () => document.getElementById('call-record-file').click());
-
-document.getElementById('call-record-file').addEventListener('change', (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (loadEvent) => {
-    try {
-      const record = JSON.parse(loadEvent.target.result);
-      if (record?.format !== 'sales-call-record-v1'
-        || typeof record.name !== 'string'
-        || !['Yes', 'No'].includes(record.phonePickedUp)
-        || typeof record.callDateTime !== 'string') {
-        throw new Error('This is not a valid call record export.');
-      }
-      setFormValue('fullName', record.name);
-      setFormValue('phonePickedUp', record.phonePickedUp);
-      setFormValue('callDateTime', record.callDateTime.slice(0, 16));
-      setFormValue('callDuration', record.callDuration || '');
-      conversationText.value = '';
-      pendingCallRecords = [];
-      renderCallChoices();
-      updateConditionalFields();
-      importStatus.textContent = 'Call metadata imported. Review before saving.';
-      saveFormDraft();
-    } catch (error) {
-      importStatus.textContent = `Could not import call record: ${error.message}`;
-    }
-    event.target.value = '';
-  };
-  reader.readAsText(file);
-});
-
 async function persistEntries() {
   manualEntries = await popupStorage.saveEntries(logs, manualEntries);
-}
-
-function getTimeZoneDisplayName(timeZone) {
-  const names = {
-    'America/Denver': 'Mountain Time',
-    'America/Los_Angeles': 'Pacific Time',
-    'America/Chicago': 'Central Time',
-    'America/New_York': 'Eastern Time',
-    UTC: 'UTC'
-  };
-  return names[timeZone] || String(timeZone || '').replace(/_/g, ' ');
-}
-
-function getReportingTimeZone() {
-  const select = document.getElementById('reporting-time-zone');
-  return select?.value || DISPLAY_TIME_ZONE;
-}
-
-function getLocalDateValue(date = new Date(), timeZone = getReportingTimeZone()) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric', month: '2-digit', day: '2-digit'
-  }).formatToParts(date).reduce((values, part) => {
-    values[part.type] = part.value;
-    return values;
-  }, {});
-  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 function setFormValue(name, value) {
@@ -142,44 +51,6 @@ function setFormValue(name, value) {
   if (field && value !== undefined) {
     field.value = value;
   }
-}
-
-function renderCallChoices() {
-  callChoices.replaceChildren();
-  if (pendingCallRecords.length < 2) {
-    callChoices.style.display = 'none';
-    return;
-  }
-  pendingCallRecords.forEach((record) => {
-    const label = document.createElement('label');
-    const checkbox = document.createElement('input');
-    const detail = document.createElement('div');
-    const title = document.createElement('strong');
-    const summary = document.createElement('span');
-    checkbox.type = 'checkbox';
-    checkbox.checked = record.selected;
-    checkbox.dataset.callId = record.id;
-    checkbox.addEventListener('change', () => {
-      record.selected = checkbox.checked;
-      const selectedCount = pendingCallRecords.filter((item) => item.selected).length;
-      importStatus.textContent = `${selectedCount} call record${selectedCount === 1 ? '' : 's'} selected.`;
-    });
-    title.textContent = `Call ${pendingCallRecords.indexOf(record) + 1} - ${record.status}`;
-    summary.textContent = `${formatDateTime(record.callDateTime)} | Duration: ${record.callDuration || '-'}`;
-    detail.append(title, summary);
-    label.className = 'call-choice';
-    label.append(checkbox, detail);
-    callChoices.appendChild(label);
-  });
-  callChoices.style.display = 'grid';
-}
-
-function limitTranscript(value) {
-  if (value.length <= MAX_TRANSCRIPT_LENGTH) {
-    return value;
-  }
-  importStatus.textContent = `Conversation was shortened to ${MAX_TRANSCRIPT_LENGTH.toLocaleString()} characters.`;
-  return value.slice(0, MAX_TRANSCRIPT_LENGTH);
 }
 
 function durationToSeconds(value) {
@@ -191,7 +62,6 @@ function getFormDraft() {
   const form = document.getElementById('manual-entry-form');
   return {
     ...Object.fromEntries(new FormData(form).entries()),
-    conversationText: limitTranscript(conversationText.value),
     editingEntry
   };
 }
@@ -206,9 +76,7 @@ async function restoreFormDraft() {
     return;
   }
   Object.entries(draft).forEach(([name, value]) => {
-    if (name === 'conversationText') {
-      conversationText.value = value;
-    } else if (name === 'editingEntry') {
+    if (name === 'editingEntry') {
       editingEntry = value;
     } else if (name === 'leaveReason') {
       setFormValue(name, normalizeLeaveReason(value));
@@ -244,38 +112,6 @@ async function restorePendingLead() {
   await saveFormDraft();
 }
 
-function populateFromConversation() {
-  const text = limitTranscript(conversationText.value.trim());
-  conversationText.value = text;
-  if (!text) {
-    importStatus.textContent = 'Paste a conversation first.';
-    return;
-  }
-  pendingCallRecords = extractCallRecords(text).map((record) => ({ ...record, selected: true }));
-  renderCallChoices();
-  const data = extractConversationData(text, {
-    extractLeadName,
-    getDateTimeParts,
-    getMountainDateTimeValue,
-    getLocalDateTimeValue
-  });
-  if (pendingCallRecords.length) {
-    const firstCall = pendingCallRecords[0];
-    data.phonePickedUp = firstCall.phonePickedUp;
-    data.callDateTime = firstCall.callDateTime;
-    data.callDuration = firstCall.callDuration;
-  }
-  Object.entries(data).forEach(([name, value]) => setFormValue(name, value));
-  updateConditionalFields();
-  const detected = Object.keys(data).length;
-  const detectedFields = Object.keys(data).join(', ');
-  const callMessage = pendingCallRecords.length > 1
-    ? ` ${pendingCallRecords.length} call records found; choose which to save.`
-    : '';
-  importStatus.textContent = `Detected ${detected} field${detected === 1 ? '' : 's'}: ${detectedFields || 'none'}. Review before saving.${callMessage}`;
-  saveFormDraft();
-}
-
 function isToday(timestamp) {
   const date = parseStoredDateTime(timestamp);
   return getLocalDateValue(date) === getLocalDateValue();
@@ -301,6 +137,9 @@ function isVisible(timestamp) {
 }
 
 function getStatusClass(status) {
+  if (status === 'Disqualified') {
+    return 'disqualified';
+  }
   if (['Picked Up', 'Showed', 'Booked'].includes(status)) {
     return status === 'Booked' ? 'booked' : 'picked-up';
   }
@@ -445,11 +284,6 @@ async function loadLogs() {
   renderAppointmentQueue();
 }
 
-function getDefaultAppointmentTimeZone() {
-  const defaultSelect = document.getElementById('default-time-zone');
-  return defaultSelect?.value || DISPLAY_TIME_ZONE;
-}
-
 function getEntryFormData(form) {
   const formData = new FormData(form);
   const appointmentDate = formData.get('appointmentDate');
@@ -457,7 +291,9 @@ function getEntryFormData(form) {
   const followUpDate = formData.get('followUpDate');
   const wasSet = formData.get('wasSet');
   const phonePickedUp = formData.get('phonePickedUp');
-  const normalizedStatus = wasSet === 'Yes' || appointmentDate
+  const normalizedStatus = formData.get('disqualified') === 'Yes'
+    ? 'Disqualified'
+    : wasSet === 'Yes' || appointmentDate
     ? 'Booked'
     : phonePickedUp === 'Yes'
       ? 'Picked Up'
@@ -482,8 +318,7 @@ function getEntryFormData(form) {
     followUpDate: followUpDate || '',
     appointmentTimeZone,
     status: normalizedStatus,
-    notes: formData.get('notes').trim(),
-    conversationText: limitTranscript(conversationText.value.trim())
+    notes: formData.get('notes').trim()
   };
 }
 
@@ -556,7 +391,6 @@ function startEditing(entry) {
     }
     setFormValue(name, value);
   });
-  conversationText.value = entry.conversationText || '';
   updateConditionalFields();
   saveEntryButton.textContent = 'Save changes';
   clearFormButton.hidden = true;
@@ -566,24 +400,10 @@ function startEditing(entry) {
   saveFormDraft();
 }
 
-function syncDefaultAppointmentTimeZone() {
-  const defaultSelect = document.getElementById('default-time-zone');
-  const appointmentTimeZone = document.querySelector('[name="appointmentTimeZone"]');
-  if (defaultSelect && !defaultSelect.value) {
-    defaultSelect.value = DISPLAY_TIME_ZONE;
-  }
-  if (appointmentTimeZone && !appointmentTimeZone.value) {
-    appointmentTimeZone.value = defaultSelect?.value || DISPLAY_TIME_ZONE;
-  }
-}
-
 function resetEntryForm() {
   editingEntry = null;
-  pendingCallRecords = [];
-  renderCallChoices();
   document.getElementById('manual-entry-form').reset();
   syncDefaultAppointmentTimeZone();
-  conversationText.value = '';
   importStatus.textContent = '';
   saveEntryButton.textContent = 'Save entry';
   clearFormButton.hidden = false;
@@ -615,11 +435,6 @@ document.getElementById('manual-entry-form').addEventListener('submit', async (e
   event.preventDefault();
   const form = event.currentTarget;
   const entry = getEntryFormData(form);
-  const selectedCallRecords = pendingCallRecords.filter((record) => record.selected);
-  if (!editingEntry && pendingCallRecords.length > 1 && !selectedCallRecords.length) {
-    importStatus.textContent = 'Select at least one call record to save.';
-    return;
-  }
   const entryWithCallTime = {
     ...entry,
     createdAt: editingEntry
@@ -658,24 +473,14 @@ document.getElementById('manual-entry-form').addEventListener('submit', async (e
     }
     await persistEntries();
   } else {
-    const recordsToSave = selectedCallRecords.length ? selectedCallRecords : [null];
-    recordsToSave.forEach((record) => {
-      const resolvedStatus = entry.wasSet === 'Yes'
-        ? 'Booked'
-        : record
-          ? (record.phonePickedUp === 'Yes' ? 'Picked Up' : 'No Answer')
-          : (entry.phonePickedUp === 'Yes' ? 'Picked Up' : entry.phonePickedUp === 'No' ? 'No Answer' : '');
-      manualEntries.push({
-        ...entry,
-        ...(record ? {
-          phonePickedUp: record.phonePickedUp,
-          callDateTime: record.callDateTime,
-          callDuration: record.callDuration,
-          status: resolvedStatus
-        } : { status: resolvedStatus }),
-        id: createEntryId(),
-        createdAt: new Date().toISOString()
-      });
+    const resolvedStatus = entry.wasSet === 'Yes'
+      ? 'Booked'
+      : entry.phonePickedUp === 'Yes' ? 'Picked Up' : entry.phonePickedUp === 'No' ? 'No Answer' : '';
+    manualEntries.push({
+      ...entry,
+      status: resolvedStatus,
+      id: createEntryId(),
+      createdAt: new Date().toISOString()
     });
     await persistEntries();
   }
@@ -699,27 +504,6 @@ function updateConditionalFields() {
   updateConversationOutcomeVisibility();
 }
 
-async function loadDefaultAppointmentTimeZone() {
-  const stored = await chrome.storage.local.get({
-    [DEFAULT_TIME_ZONE_KEY]: DISPLAY_TIME_ZONE,
-    [REPORTING_TIME_ZONE_KEY]: DISPLAY_TIME_ZONE
-  });
-  const defaultValue = stored[DEFAULT_TIME_ZONE_KEY] || DISPLAY_TIME_ZONE;
-  const reportingValue = stored[REPORTING_TIME_ZONE_KEY] || DISPLAY_TIME_ZONE;
-  const defaultSelect = document.getElementById('default-time-zone');
-  const reportingSelect = document.getElementById('reporting-time-zone');
-  const appointmentTimeZone = document.querySelector('[name="appointmentTimeZone"]');
-  if (defaultSelect) {
-    defaultSelect.value = defaultValue;
-  }
-  if (reportingSelect) {
-    reportingSelect.value = reportingValue;
-  }
-  if (appointmentTimeZone && !appointmentTimeZone.value) {
-    appointmentTimeZone.value = defaultValue;
-  }
-}
-
 function updateConversationOutcomeVisibility() {
   const outcome = document.getElementById('conversation-outcome');
   const phonePickedUp = document.getElementById('phone-picked-up').value;
@@ -727,22 +511,13 @@ function updateConversationOutcomeVisibility() {
   const pitched = document.getElementById('pitched').value;
   const wasSet = document.getElementById('was-set').value;
   const reachedBadOutcome = disqualified !== 'Yes' && (pitched === 'No' || wasSet === 'No');
+  const settingStage = document.querySelector('[data-show-when="phone-picked-up=Yes&disqualified=No&pitched=Yes"]');
+  const settingVisible = settingStage?.style.display !== 'none';
   outcome.style.display = phonePickedUp === 'Yes' && reachedBadOutcome ? 'grid' : 'none';
   document.querySelector('[name="leaveReason"]').required = outcome.style.display === 'grid';
-  document.querySelector('[name="closer"]').required = wasSet === 'Yes';
-  document.querySelector('[name="appointmentDate"]').required = wasSet === 'Yes';
-  document.querySelector('[name="appointmentTimeZone"]').required = wasSet === 'Yes';
-}
-
-function getLocalDateTimeValue(date = new Date()) {
-  return getMountainDateTimeValue(date);
-}
-
-function updateCallDateTime() {
-  const callDateTime = document.querySelector('[name="callDateTime"]');
-  if (!callDateTime.value) {
-    callDateTime.value = getLocalDateTimeValue();
-  }
+  document.querySelector('[name="closer"]').required = settingVisible && wasSet === 'Yes';
+  document.querySelector('[name="appointmentDate"]').required = settingVisible && wasSet === 'Yes';
+  document.querySelector('[name="appointmentTimeZone"]').required = settingVisible && wasSet === 'Yes';
 }
 
 document.getElementById('reporting-time-zone').addEventListener('change', async () => {
@@ -770,7 +545,7 @@ document.querySelectorAll('#manual-entry-form select').forEach((select) => {
     saveFormDraft();
   });
 });
-document.getElementById('analyze-conversation').addEventListener('click', populateFromConversation);
+globalThis.setupPopupDataTransfer({ importStatus, saveFormDraft, setFormValue, updateConditionalFields });
 clearFormButton.addEventListener('click', async () => {
   await popupStorage.clearDraft();
   resetEntryForm();
@@ -780,7 +555,6 @@ cancelEditButton.addEventListener('click', async () => {
   resetEntryForm();
 });
 document.getElementById('manual-entry-form').addEventListener('input', saveFormDraft);
-conversationText.addEventListener('input', saveFormDraft);
 updateConditionalFields();
 updateCallDateTime();
 

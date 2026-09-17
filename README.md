@@ -10,14 +10,13 @@ The extension runs entirely in the browser. It uses `chrome.storage.local` and d
 - `Picked Up` and `No Answer` call tracking
 - Call datetime and call duration tracking
 - Manual lead-entry form with progressive workflow stages
-- Conversation text importer with local pattern-based extraction
+- Call-record JSON import from the GoHighLevel call logger
 - Draft persistence when the popup is closed
 - Edit and delete entries
 - Duplicate-call warning based on normalized lead name and call time
 - Daily summary metrics
 - Hourly pickup-rate tracker in Mountain Time
 - JSON backup and restore
-- Local transcript storage with a 100,000-character safety limit
 
 ## Install Locally
 
@@ -62,25 +61,6 @@ The popup supports these progressive stages:
 7. Notes
 
 The form hides stages that do not apply. For example, qualification is not shown until a lead picks up, and pitch is not shown for disqualified leads.
-
-### Conversation importer
-
-Paste one GoHighLevel conversation into **Import conversation**, then click **Analyze conversation**. The local extractor looks for likely:
-
-- Name
-- Email
-- Phone
-- Appointment datetime
-- Pickup outcome
-- Call datetime
-- Call duration
-- Disqualification
-- Pitch outcome
-- Appointment setting
-- Closer
-- Conversation outcome (`Money`, `Partner`, `Timing`, or `Had to go`)
-
-The importer does not use AI. It uses local JavaScript pattern matching and always requires review before saving. It reports which fields it detected. The original pasted transcript is stored separately as `conversationText`.
 
 ## Daily Reporting
 
@@ -150,14 +130,13 @@ The primary unified collection. Each record has a stable `id` and may include:
 - `appointmentDate`
 - `leaveReason` (`Money`, `Partner`, `Timing`, or `Had to go`; older `Objection` values count as `Money`)
 - `notes`
-- `conversationText`
 - `createdAt`
 
 The older `callLogs` and `manualEntries` keys are maintained as compatibility mirrors for existing data and content-script behavior.
 
 ### Drafts
 
-`conversationDraft` stores unfinished form/import data so closing the popup does not lose work. Drafts are removed after saving, clearing, or cancelling.
+`conversationDraft` stores unfinished form data so closing the popup does not lose work. Drafts are removed after saving, clearing, or cancelling.
 
 ## Backup and Restore
 
@@ -165,7 +144,7 @@ Use **Backup JSON** to download the unified `entries` collection as a local JSON
 
 Use **Restore JSON** to load a previously created backup. The file must contain a JSON array of entry objects. Restore replaces the current unified collection after validation and reloads the popup.
 
-Keep backups somewhere secure because they may contain names, phone numbers, email addresses, notes, and conversation transcripts.
+Keep backups somewhere secure because they may contain names, phone numbers, email addresses, and notes.
 
 ## Privacy
 
@@ -182,7 +161,9 @@ Anyone with access to the Chrome profile may be able to access the extension dat
 - `manifest.json`: Chrome extension configuration
 - `popup.html`: Dashboard and data-entry interface
 - `scripts/content.js`: GoHighLevel page detection, floating logger, and local call persistence
-- `scripts/popup.js`: Popup event handling, storage orchestration, reporting, and editing
+- `scripts/popup.js`: Popup state, form handling, reporting, and editing
+- `scripts/popup-data-transfer.js`: Backup, restore, and call-record JSON import
+- `scripts/popup-settings.js`: Reporting and appointment timezone settings
 - `scripts/appointment-queue.js`: Upcoming appointment filtering, labels, and ordering
 - `scripts/entry-model.js`: Entry status normalization and record shaping
 - `scripts/outcome-model.js`: Conversation outcome codes (Money, Partner, Timing, Had to go)
@@ -191,10 +172,8 @@ Anyone with access to the Chrome profile may be able to access the extension dat
 - `scripts/entry-view.js`: Entry table rendering and row actions
 - `scripts/summary-model.js`: Daily and hourly reporting calculations
 - `scripts/dom-utils.js`: Safe reusable DOM construction helpers
-- `scripts/conversation-parser.js`: Conversation and call-record extraction
-- `scripts/conversation-import.js`: Form-field extraction from pasted conversations
 - `scripts/timezone.js`: Timezone conversion and date formatting
-- `tests/`: Parser, timezone, queue, entry-model, and content-script behavior tests
+- `tests/`: Timezone, queue, entry-model, and content-script behavior tests
 
 Run the extension tests from this directory:
 

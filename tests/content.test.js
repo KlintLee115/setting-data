@@ -6,22 +6,46 @@ const vm = require('node:vm');
 const contentScript = fs.readFileSync(`${__dirname}/../scripts/content.js`, 'utf8');
 
 function loadContentScript(storageGetError, storageSetError) {
-  const handlers = {};
   const consoleErrors = [];
-  const pickedUpButton = {
-    addEventListener(eventName, handler) {
-      handlers[eventName] = handler;
-    }
-  };
-  const noAnswerButton = {
-    addEventListener(eventName, handler) {
-      if (eventName === 'click') handlers.noAnswer = handler;
-    }
-  };
+  const storageCalls = [];
+  function element() {
+    return {
+      children: [],
+      addEventListener(eventName, handler) {
+        if (eventName === 'click') this.clickHandler = handler;
+      },
+      append(...items) { this.children.push(...items); },
+      appendChild(item) { this.children.push(item); },
+      replaceChildren(...items) { this.children = items; },
+      click() { this.clickHandler?.(); },
+      querySelector(selector) {
+        const className = selector.slice(1);
+        for (const child of this.children) {
+          if (child.className === className) return child;
+          const nested = child.querySelector?.(selector);
+          if (nested) return nested;
+        }
+        return null;
+      },
+      style: { display: '' },
+      value: '',
+      textContent: ''
+    };
+  }
+  const fields = element();
+  const actions = element();
+  const cancelButton = element();
+  const nameElement = element();
   const shadowRoot = {
     set innerHTML(value) {},
     querySelector(selector) {
-      return selector === '.picked-up' ? pickedUpButton : noAnswerButton;
+      return {
+        '.fields': fields,
+        '.actions': actions,
+        '.cancel': cancelButton,
+        '.name': nameElement,
+        '.message': element()
+      }[selector];
     }
   };
   const host = {
@@ -35,8 +59,8 @@ function loadContentScript(storageGetError, storageSetError) {
   const document = {
     body: { innerText: '' },
     documentElement: { appendChild() {} },
-    createElement() {
-      return host;
+    createElement(tagName) {
+      return tagName === 'div' ? host : element();
     },
     querySelector() {
       return { textContent: 'Jane Doe' };
@@ -50,9 +74,12 @@ function loadContentScript(storageGetError, storageSetError) {
       storage: {
         local: {
           get() {
-            return Promise.reject(storageGetError);
+            return storageGetError
+              ? Promise.reject(storageGetError)
+              : Promise.resolve({ entries: [], callLogs: [], manualEntries: [] });
           },
           set() {
+            storageCalls.push([...arguments]);
             if (storageSetError) throw storageSetError;
             return Promise.resolve();
           }
@@ -78,9 +105,17 @@ function loadContentScript(storageGetError, storageSetError) {
 
   vm.runInNewContext(contentScript, context);
   return {
-    clickNoAnswer: () => handlers.noAnswer(),
-    clickPickedUp: () => handlers.click(),
-    consoleErrors
+    clickNoAnswer: () => actions.children[1].click(),
+    clickPickedUp: () => actions.children[0].click(),
+    clickCancel: () => cancelButton.click(),
+    actionCount: () => actions.children.length,
+    clickAction: () => actions.children[0].click(),
+    field: (className) => fields.children
+      .map((label) => label.children.find((child) => child.className === className))
+      .find(Boolean),
+    isVisible: () => host.style.display !== 'none',
+    consoleErrors,
+    storageCalls
   };
 }
 
@@ -108,8 +143,8 @@ test('ignores extension context invalidation from the call logger', async () => 
 });
 
 test('reports unrelated call logger storage errors', async () => {
-  const { clickPickedUp, consoleErrors } = loadContentScript(new Error('Storage unavailable'));
-  clickPickedUp();
+  const { clickNoAnswer, consoleErrors } = loadContentScript(new Error('Storage unavailable'));
+  clickNoAnswer();
   await flushPromises();
 
   assert.equal(consoleErrors.length, 1);
@@ -135,4 +170,48 @@ test('handles the no-answer button through the same save path', async () => {
   assert.equal(consoleErrors.length, 1);
   assert.equal(consoleErrors[0][0], 'Could not save call:');
   assert.match(consoleErrors[0][1].message, /Storage unavailable/);
+});
+
+test('picked-up opens the qualification step before saving', async () => {
+  const { clickPickedUp, actionCount, storageCalls } = loadContentScript();
+
+  clickPickedUp();
+  await flushPromises();
+
+  assert.equal(actionCount(), 1);
+  assert.equal(storageCalls.length, 1);
+});
+
+test('picked-up follows the form flow and saves appointment details', async () => {
+  const logger = loadContentScript();
+
+  logger.clickPickedUp();
+  logger.field('disqualified').value = 'No';
+  logger.clickAction();
+  logger.field('pitched').value = 'Yes';
+  logger.clickAction();
+  logger.field('wasSet').value = 'Yes';
+  logger.clickAction();
+  logger.field('closer').value = 'Alicia Lyttle';
+  logger.field('appointmentDate').value = '2026-09-20T10:00';
+  logger.field('followUpDate').value = '2026-09-18';
+  logger.field('appointmentTimeZone').value = 'America/Denver';
+  logger.clickAction();
+  await flushPromises();
+
+  const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
+  assert.equal(saved.disqualified, 'No');
+  assert.equal(saved.pitched, 'Yes');
+  assert.equal(saved.wasSet, 'Yes');
+  assert.equal(saved.closer, 'Alicia Lyttle');
+  assert.equal(saved.followUpDate, '2026-09-18');
+  assert.equal(saved.appointmentTimeZone, 'America/Denver');
+});
+
+test('X cancels an unfinished call entry', () => {
+  const { clickCancel, isVisible } = loadContentScript();
+
+  assert.equal(isVisible(), true);
+  clickCancel();
+  assert.equal(isVisible(), false);
 });

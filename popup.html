@@ -50,11 +50,7 @@
     .entry-form input:focus { outline: 3px solid rgba(49, 130, 206, .2); outline-offset: 1px; }
     .entry-form select, .entry-form textarea { width: 100%; min-height: 32px; padding: 0 8px; border: 1px solid #d8e0eb; border-radius: 6px; color: #29364a; font: inherit; font-size: 11px; }
     .entry-form textarea { min-height: 58px; padding-top: 8px; resize: vertical; }
-    .import-box { display: grid; gap: 8px; padding: 12px; border: 1px solid #e1e7ef; border-radius: 9px; background: #ffffff; }
-    .import-box textarea { width: 100%; min-height: 96px; padding: 8px; border: 1px solid #d8e0eb; border-radius: 6px; color: #29364a; font: inherit; font-size: 11px; resize: vertical; }
-    .import-box button { color: #245a95; border-color: #b8cbe2; }
     .import-status { min-height: 14px; color: #718096; font-size: 10px; }
-    .call-choices { display: none; gap: 6px; padding-top: 4px; }
     .call-choice { display: grid; grid-template-columns: auto 1fr; gap: 7px; align-items: start; padding: 8px; border: 1px solid #e1e7ef; border-radius: 6px; background: #fbfcfe; color: #29364a; font-size: 11px; }
     .call-choice input { margin: 2px 0 0; }
     .call-choice strong { display: block; font-size: 11px; }
@@ -98,6 +94,7 @@
     .status.picked-up { color: #17633f; background: #e1f4eb; }
     .status.booked { color: #245a95; background: #e9f1ff; }
     .status.no-answer { color: #9b3034; background: #fae5e6; }
+    .status.disqualified { color: #9b3034; background: #fae5e6; }
     .empty { padding: 28px 14px; color: #718096; font-size: 12px; text-align: center; }
     .cell-stack { display: grid; gap: 3px; min-width: 0; }
     .cell-main { overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
@@ -127,6 +124,7 @@
       <input id="restore-file" type="file" accept="application/json" hidden>
       <button id="import-call-record" type="button">Import Call Record</button>
       <input id="call-record-file" type="file" accept="application/json" hidden>
+      <span class="import-status" id="import-status" aria-live="polite"></span>
     </div>
     <div class="settings-panel">
       <label>
@@ -149,13 +147,6 @@
           <option value="UTC">UTC</option>
         </select>
       </label>
-    </div>
-    <h2 class="section-title">Import conversation</h2>
-    <div class="import-box">
-      <textarea id="conversation-text" placeholder="Paste one GHL conversation here..."></textarea>
-      <button id="analyze-conversation" type="button">Analyze conversation</button>
-      <div class="call-choices" id="call-choices" aria-label="Call records detected"></div>
-      <span class="import-status" id="import-status" aria-live="polite"></span>
     </div>
     <h2 class="section-title">Add entry</h2>
     <form class="entry-form" id="manual-entry-form">
@@ -241,10 +232,10 @@
   <script src="scripts/appointment-queue.js"></script>
   <script src="scripts/queue-view.js"></script>
   <script src="scripts/entry-view.js"></script>
-  <script src="scripts/conversation-import.js"></script>
   <script src="scripts/summary-model.js"></script>
   <script src="scripts/dom-utils.js"></script>
-  <script src="scripts/conversation-parser.js"></script>
+  <script src="scripts/popup-data-transfer.js"></script>
+  <script src="scripts/popup-settings.js"></script>
   <script src="scripts/popup.js"></script>
 </body>
 </html>

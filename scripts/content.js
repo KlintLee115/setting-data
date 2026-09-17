@@ -20,6 +20,7 @@
   let lastUrl = window.location.href;
   let host = null;
   let saveInProgress = false;
+  let callFlow = null;
 
   function normalizeName(value) {
     return value.replace(/\s+/g, ' ').replace(/\s+\.$/, '').trim();
@@ -51,9 +52,9 @@
     return `${window.location.pathname}|${window.location.search}|${name.toLowerCase()}`;
   }
 
-  function saveCallSafely(status) {
+  function saveCallSafely(status, details = {}) {
     void Promise.resolve()
-      .then(() => saveCall(status))
+      .then(() => saveCall(status, details))
       .catch((error) => {
         if (!/extension context invalidated/i.test(String(error?.message || error))) {
           console.error('Could not save call:', error);
@@ -106,26 +107,161 @@
       <style>
         .panel { display: grid; gap: 8px; min-width: 180px; padding: 12px; border: 1px solid #d8e0eb; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px rgba(23, 32, 51, .18); color: #172033; font: 12px Segoe UI, sans-serif; }
         .name { overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+        .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .fields { display: grid; gap: 6px; }
+        label { display: grid; gap: 3px; color: #718096; font-size: 10px; font-weight: 700; }
+        input, select, textarea { width: 100%; min-height: 30px; padding: 5px 7px; border: 1px solid #d8e0eb; border-radius: 5px; color: #29364a; font: inherit; }
+        textarea { min-height: 48px; resize: vertical; }
+        .cancel { min-width: 24px; min-height: 24px; padding: 0; border: 0; color: #718096; font-size: 18px; line-height: 1; }
         button { min-height: 30px; border: 1px solid #b8cbe2; border-radius: 5px; background: #fff; color: #245a95; cursor: pointer; font: inherit; font-weight: 700; }
         button:hover { background: #f0f4f9; }
         .message { min-height: 14px; color: #9b3034; font-size: 11px; }
       </style>
-      <div class="panel">
-        <div class="name"></div>
-        <div class="actions">
-          <button class="picked-up" type="button">Picked up</button>
-          <button class="no-answer" type="button">No answer</button>
-        </div>
+        <div class="panel">
+        <div class="panel-head"><div class="name"></div><button class="cancel" type="button" aria-label="Cancel call entry" title="Cancel">&times;</button></div>
+        <div class="fields"></div>
+        <div class="actions"></div>
         <div class="message" aria-live="polite"></div>
       </div>`;
-    host.shadowRoot.querySelector('.picked-up').addEventListener('click', () => saveCallSafely('Picked Up'));
-    host.shadowRoot.querySelector('.no-answer').addEventListener('click', () => saveCallSafely('No Answer'));
+    host.shadowRoot.querySelector('.cancel').addEventListener('click', cancelCallFlow);
     document.documentElement.appendChild(host);
+    renderCallFlow();
     return host;
   }
 
-  async function saveCall(status) {
+  function createField(tagName, className, labelText, attributes = {}) {
+    const label = document.createElement('label');
+    const text = document.createElement('span');
+    const field = document.createElement(tagName);
+    text.textContent = labelText;
+    Object.entries(attributes).forEach(([name, value]) => {
+      field[name] = value;
+    });
+    field.className = className;
+    label.append(text, field);
+    return { field, label };
+  }
+
+  function addSelectField(container, key, labelText, options) {
+    const { field, label } = createField('select', key, labelText);
+    options.forEach(([value, text]) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = text;
+      field.appendChild(option);
+    });
+    field.value = callFlow.data[key] || '';
+    container.appendChild(label);
+    return field;
+  }
+
+  function addTextField(container, key, labelText, type = 'text') {
+    const { field, label } = createField('input', key, labelText, { type });
+    field.value = callFlow.data[key] || '';
+    container.appendChild(label);
+    return field;
+  }
+
+  function addNotesField(container) {
+    const { field, label } = createField('textarea', 'notes', 'Notes');
+    field.value = callFlow.data.notes || '';
+    container.appendChild(label);
+    return field;
+  }
+
+  function nextButton(text, handler) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = text;
+    button.addEventListener('click', handler);
+    return button;
+  }
+
+  function renderCallFlow() {
+    if (!host) return;
+    const fields = host.shadowRoot.querySelector('.fields');
+    const actions = host.shadowRoot.querySelector('.actions');
+    fields.replaceChildren();
+    actions.replaceChildren();
+    if (!callFlow) {
+      const pickedUp = nextButton('Picked up', () => startCallFlow('Picked Up'));
+      pickedUp.className = 'picked-up';
+      const noAnswer = nextButton('No answer', () => saveCallSafely('No Answer'));
+      noAnswer.className = 'no-answer';
+      actions.append(pickedUp, noAnswer);
+      return;
+    }
+    if (callFlow.step === 'qualification') {
+      const disqualified = addSelectField(fields, 'disqualified', 'Disqualified?', [['', 'Select'], ['Yes', 'Yes'], ['No', 'No']]);
+      actions.append(nextButton('Next', () => {
+        callFlow.data.disqualified = disqualified.value;
+        callFlow.step = disqualified.value === 'Yes' ? 'disqualification' : 'pitch';
+        renderCallFlow();
+      }));
+    } else if (callFlow.step === 'disqualification') {
+      const reason = addTextField(fields, 'disqualificationReason', 'Reason');
+      addNotesField(fields);
+      actions.append(nextButton('Save', () => {
+        callFlow.data.disqualificationReason = reason.value;
+        callFlow.data.notes = fields.querySelector('.notes').value;
+        saveCallSafely('Picked Up', callFlow.data);
+      }));
+    } else if (callFlow.step === 'pitch') {
+      const pitched = addSelectField(fields, 'pitched', 'Were you able to pitch?', [['', 'Select'], ['Yes', 'Yes'], ['No', 'No']]);
+      actions.append(nextButton('Next', () => {
+        callFlow.data.pitched = pitched.value;
+        callFlow.step = pitched.value === 'Yes' ? 'setting' : 'outcome';
+        renderCallFlow();
+      }));
+    } else if (callFlow.step === 'setting') {
+      const wasSet = addSelectField(fields, 'wasSet', 'Were you able to set?', [['', 'Select'], ['Yes', 'Yes'], ['No', 'No']]);
+      actions.append(nextButton('Next', () => {
+        callFlow.data.wasSet = wasSet.value;
+        callFlow.step = wasSet.value === 'Yes' ? 'appointment' : 'outcome';
+        renderCallFlow();
+      }));
+    } else if (callFlow.step === 'appointment') {
+      const closer = addTextField(fields, 'closer', 'Closer');
+      const appointmentDate = addTextField(fields, 'appointmentDate', 'Appointment date/time', 'datetime-local');
+      addTextField(fields, 'followUpDate', 'Follow-up date', 'date');
+      addSelectField(fields, 'appointmentTimeZone', 'Appointment timezone', [
+        ['America/Denver', 'Mountain Time'], ['America/Los_Angeles', 'Pacific Time'],
+        ['America/Chicago', 'Central Time'], ['America/New_York', 'Eastern Time'], ['UTC', 'UTC']
+      ]);
+      addNotesField(fields);
+      actions.append(nextButton('Save', () => {
+        callFlow.data.closer = closer.value;
+        callFlow.data.appointmentDate = appointmentDate.value ? new Date(appointmentDate.value).toISOString() : '';
+        callFlow.data.followUpDate = fields.querySelector('.followUpDate').value;
+        callFlow.data.appointmentTimeZone = fields.querySelector('.appointmentTimeZone').value;
+        callFlow.data.notes = fields.querySelector('.notes').value;
+        saveCallSafely('Picked Up', callFlow.data);
+      }));
+    } else {
+      const leaveReason = addSelectField(fields, 'leaveReason', 'Conversation outcome', [['', 'Select'], ['Had to go', 'Had to go'], ['Money', 'Money'], ['Partner', 'Partner'], ['Timing', 'Timing']]);
+      addNotesField(fields);
+      actions.append(nextButton('Save', () => {
+        callFlow.data.leaveReason = leaveReason.value;
+        callFlow.data.notes = fields.querySelector('.notes').value;
+        saveCallSafely('Picked Up', callFlow.data);
+      }));
+    }
+  }
+
+  function startCallFlow(status) {
+    callFlow = { status, step: 'qualification', data: {} };
+    renderCallFlow();
+  }
+
+  function cancelCallFlow() {
+    callFlow = null;
+    overlayVisible = false;
+    setOverlayMessage('');
+    renderOverlay();
+  }
+
+  async function saveCall(status, details = {}) {
     if (!currentName || saveInProgress) {
       return;
     }
@@ -152,7 +288,8 @@
         phonePickedUp: status === 'Picked Up' ? 'Yes' : 'No',
         callDateTime,
         callDuration: durationMatch ? durationMatch[2] : '',
-        timestamp
+        timestamp,
+        ...details
       };
       entries.push(call);
       await chrome.storage.local.set({
@@ -161,6 +298,7 @@
         manualEntries: entries.filter((entry) => entry.recordType !== 'call')
       });
       overlayVisible = false;
+      callFlow = null;
       renderOverlay();
     } finally {
       saveInProgress = false;
@@ -191,6 +329,7 @@
     if (contactKey && contactKey !== currentContactKey) {
       currentContactKey = contactKey;
       currentName = name;
+      callFlow = null;
       overlayVisible = true;
       publishLeadSafely(name);
     } else if (!contactKey) {
