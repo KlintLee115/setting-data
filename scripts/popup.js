@@ -9,7 +9,9 @@ const dailyDisqualified = document.getElementById('daily-disqualified');
 const dailyPitches = document.getElementById('daily-pitches');
 const dailyAppointments = document.getElementById('daily-appointments');
 const dailyNoAnswers = document.getElementById('daily-no-answers');
-const dailyObjections = document.getElementById('daily-objections');
+const dailyMoney = document.getElementById('daily-money');
+const dailyPartner = document.getElementById('daily-partner');
+const dailyTiming = document.getElementById('daily-timing');
 const dailyHadToGo = document.getElementById('daily-had-to-go');
 const dailyPitchRate = document.getElementById('daily-pitch-rate');
 const dailySetRate = document.getElementById('daily-set-rate');
@@ -208,6 +210,8 @@ async function restoreFormDraft() {
       conversationText.value = value;
     } else if (name === 'editingEntry') {
       editingEntry = value;
+    } else if (name === 'leaveReason') {
+      setFormValue(name, normalizeLeaveReason(value));
     } else {
       setFormValue(name, value);
     }
@@ -384,7 +388,9 @@ function renderPickupSummary() {
   dailyPitches.textContent = summary.pitches;
   dailyAppointments.textContent = summary.appointments;
   dailyNoAnswers.textContent = summary.noAnswers;
-  dailyObjections.textContent = summary.objections;
+  dailyMoney.textContent = summary.money;
+  dailyPartner.textContent = summary.partner;
+  dailyTiming.textContent = summary.timing;
   dailyHadToGo.textContent = summary.hadToGo;
   dailyPitchRate.textContent = summary.pitchRate === null ? '-' : `${summary.pitchRate.toFixed(1)}%`;
   dailySetRate.textContent = summary.setRate === null ? '-' : `${summary.setRate.toFixed(1)}%`;
@@ -466,7 +472,7 @@ function getEntryFormData(form) {
     callDateTime: formData.get('callDateTime'),
     callDuration: formData.get('callDuration'),
     lastTextMessage: formData.get('lastTextMessage').trim(),
-    leaveReason: formData.get('leaveReason'),
+    leaveReason: normalizeLeaveReason(formData.get('leaveReason')),
     disqualified: formData.get('disqualified'),
     disqualificationReason: formData.get('disqualificationReason').trim(),
     pitched: formData.get('pitched'),
@@ -543,6 +549,7 @@ function startEditing(entry) {
   if (values.followUpDate) {
     values.followUpDate = values.followUpDate.slice(0, 10);
   }
+  values.leaveReason = normalizeLeaveReason(values.leaveReason);
   Object.entries(values).forEach(([name, value]) => {
     if (['entryType', 'sourceType', 'sourceIndex', 'recordType', 'createdAt', 'timestamp'].includes(name)) {
       return;

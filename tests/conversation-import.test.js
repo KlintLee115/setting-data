@@ -30,3 +30,27 @@ test('extracts key appointment and outcome fields', () => {
   assert.equal(data.phonePickedUp, 'Yes');
   assert.equal(data.closer, 'Alicia Lyttle');
 });
+
+test('maps leave reasons to Money, Partner, Timing, or Had to go', () => {
+  const money = extractConversationData(
+    'They got off the call because it was too expensive.',
+    options
+  );
+  const partner = extractConversationData(
+    'They left the conversation to talk with their spouse.',
+    options
+  );
+  const timing = extractConversationData(
+    'They left the conversation and said not right now.',
+    options
+  );
+  const hadToGo = extractConversationData(
+    'They had to go and got off the call.',
+    options
+  );
+
+  assert.equal(money.leaveReason, 'Money');
+  assert.equal(partner.leaveReason, 'Partner');
+  assert.equal(timing.leaveReason, 'Timing');
+  assert.equal(hadToGo.leaveReason, 'Had to go');
+});

@@ -1,3 +1,7 @@
+const outcomeModel = typeof require === 'function' && typeof module !== 'undefined'
+  ? require('./outcome-model')
+  : globalThis;
+
 function isCallEntry(entry) {
   return entry.entryType === 'Call';
 }
@@ -30,6 +34,7 @@ function getDailySummary(entries, durationToSeconds) {
   const totalDuration = durations.reduce((total, duration) => total + duration, 0);
   const pitchedCount = pitchedEntries.filter((entry) => entry.pitched === 'Yes').length;
   const setCount = pitchedEntries.filter((entry) => entry.wasSet === 'Yes').length;
+  const leaveReasons = outcomeModel.getLeaveReasonCounts(entries);
 
   return {
     calls: callEntries.length,
@@ -38,8 +43,10 @@ function getDailySummary(entries, durationToSeconds) {
     disqualified: entries.filter((entry) => entry.disqualified === 'Yes').length,
     pitches: entries.filter((entry) => entry.pitched === 'Yes').length,
     appointments: entries.filter((entry) => entry.wasSet === 'Yes').length,
-    objections: entries.filter((entry) => entry.leaveReason === 'Objection').length,
-    hadToGo: entries.filter((entry) => entry.leaveReason === 'Had to go').length,
+    money: leaveReasons.money,
+    partner: leaveReasons.partner,
+    timing: leaveReasons.timing,
+    hadToGo: leaveReasons.hadToGo,
     pitchRate: pitchedEntries.length ? (pitchedCount / pitchedEntries.length) * 100 : null,
     setRate: pitchedEntries.length ? (setCount / pitchedEntries.length) * 100 : null,
     averageDuration: durations.length ? Math.round(totalDuration / durations.length) : 0

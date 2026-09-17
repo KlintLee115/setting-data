@@ -47,8 +47,17 @@ function extractConversationData(text, { extractLeadName, getDateTimeParts, getM
   if (leftCall) {
     data.disqualified = data.disqualified || 'No';
     data.pitched = data.pitched || 'No';
-    if (/\b(objection|concern|hesitant|too expensive|can't afford|cannot afford)\b/i.test(text)) data.leaveReason = 'Objection';
-    else if (/\b(had to go|have to go|needed to go|gotta go|has to go|leave for)\b/i.test(text)) data.leaveReason = 'Had to go';
+    if (/\b(too expensive|can't afford|cannot afford|no budget|price|cost|money)\b/i.test(text)) {
+      data.leaveReason = 'Money';
+    } else if (/\b(partner|spouse|husband|wife|boyfriend|girlfriend)\b/i.test(text)) {
+      data.leaveReason = 'Partner';
+    } else if (/\b(not (?:right )?now|maybe later|next (?:week|month)|bad timing|timing)\b/i.test(text)) {
+      data.leaveReason = 'Timing';
+    } else if (/\b(had to go|have to go|needed to go|gotta go|has to go|leave for)\b/i.test(text)) {
+      data.leaveReason = 'Had to go';
+    } else if (/\b(objection|concern|hesitant)\b/i.test(text)) {
+      data.leaveReason = 'Money';
+    }
   }
   if (/\b(disqualified|not qualified|does not qualify)\b/i.test(text)) data.disqualified = 'Yes';
   else if (/\b(qualified|qualifies)\b/i.test(text)) data.disqualified = 'No';

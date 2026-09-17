@@ -58,7 +58,7 @@ The popup supports these progressive stages:
 3. Qualification: disqualified status and reason
 4. Pitch: whether the lead was pitched
 5. Setting: whether an appointment was set, closer, and appointment datetime
-6. Conversation outcome: why a non-disqualified lead left after a failed pitch or setting outcome
+6. Conversation outcome: Money, Partner, Timing, or Had to go when a non-disqualified lead leaves after a failed pitch or setting outcome
 7. Notes
 
 The form hides stages that do not apply. For example, qualification is not shown until a lead picks up, and pitch is not shown for disqualified leads.
@@ -78,7 +78,7 @@ Paste one GoHighLevel conversation into **Import conversation**, then click **An
 - Pitch outcome
 - Appointment setting
 - Closer
-- Leave reason
+- Conversation outcome (`Money`, `Partner`, `Timing`, or `Had to go`)
 
 The importer does not use AI. It uses local JavaScript pattern matching and always requires review before saving. It reports which fields it detected. The original pasted transcript is stored separately as `conversationText`.
 
@@ -92,7 +92,9 @@ The dashboard lets you select a date and reports:
 - Pitches
 - Appointments Set
 - No Answers
-- Objections
+- Money
+- Partner
+- Timing
 - Had To Go
 - Pitch Rate
 - Set Rate
@@ -146,7 +148,7 @@ The primary unified collection. Each record has a stable `id` and may include:
 - `wasSet`
 - `closer`
 - `appointmentDate`
-- `leaveReason`
+- `leaveReason` (`Money`, `Partner`, `Timing`, or `Had to go`; older `Objection` values count as `Money`)
 - `notes`
 - `conversationText`
 - `createdAt`
@@ -183,6 +185,7 @@ Anyone with access to the Chrome profile may be able to access the extension dat
 - `scripts/popup.js`: Popup event handling, storage orchestration, reporting, and editing
 - `scripts/appointment-queue.js`: Upcoming appointment filtering, labels, and ordering
 - `scripts/entry-model.js`: Entry status normalization and record shaping
+- `scripts/outcome-model.js`: Conversation outcome codes (Money, Partner, Timing, Had to go)
 - `scripts/popup-storage.js`: Chrome storage access, migration, and draft persistence
 - `scripts/queue-view.js`: Appointment queue DOM rendering and follow-up actions
 - `scripts/entry-view.js`: Entry table rendering and row actions

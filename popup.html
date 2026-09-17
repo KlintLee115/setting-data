@@ -189,7 +189,7 @@
       </div>
       <div class="stage conditional" id="conversation-outcome">
         <p class="stage-heading">Conversation outcome</p>
-        <label class="full-width">Why did they leave?<select id="leave-reason" name="leaveReason"><option value="">Select</option><option value="Had to go">Had to go</option><option value="Objection">Objection</option></select></label>
+        <label class="full-width">Outcome<select id="leave-reason" name="leaveReason"><option value="">Select</option><option value="Had to go">Had to go</option><option value="Money">Money</option><option value="Partner">Partner</option><option value="Timing">Timing</option></select></label>
       </div>
       <label class="full-width">Notes<textarea name="notes" placeholder="Relevant context, objections, or follow-up"></textarea></label>
       <button id="save-entry" type="submit">Save entry</button>
@@ -218,7 +218,9 @@
       <div class="daily-stat"><span class="daily-stat-value" id="daily-pitches">0</span><span class="daily-stat-label">Pitches</span></div>
       <div class="daily-stat"><span class="daily-stat-value" id="daily-appointments">0</span><span class="daily-stat-label">Appts. Set</span></div>
       <div class="daily-stat"><span class="daily-stat-value" id="daily-no-answers">0</span><span class="daily-stat-label">No Answers</span></div>
-      <div class="daily-stat"><span class="daily-stat-value" id="daily-objections">0</span><span class="daily-stat-label">Objections</span></div>
+      <div class="daily-stat"><span class="daily-stat-value" id="daily-money">0</span><span class="daily-stat-label">Money</span></div>
+      <div class="daily-stat"><span class="daily-stat-value" id="daily-partner">0</span><span class="daily-stat-label">Partner</span></div>
+      <div class="daily-stat"><span class="daily-stat-value" id="daily-timing">0</span><span class="daily-stat-label">Timing</span></div>
       <div class="daily-stat"><span class="daily-stat-value" id="daily-had-to-go">0</span><span class="daily-stat-label">Had To Go</span></div>
       <div class="daily-stat"><span class="daily-stat-value" id="daily-pitch-rate">-</span><span class="daily-stat-label">Pitch Rate</span></div>
       <div class="daily-stat"><span class="daily-stat-value" id="daily-set-rate">-</span><span class="daily-stat-label">Set Rate</span></div>
@@ -234,6 +236,7 @@
   </main>
   <script src="scripts/timezone.js"></script>
   <script src="scripts/entry-model.js"></script>
+  <script src="scripts/outcome-model.js"></script>
   <script src="scripts/popup-storage.js"></script>
   <script src="scripts/appointment-queue.js"></script>
   <script src="scripts/queue-view.js"></script>
