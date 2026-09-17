@@ -142,23 +142,6 @@ function setFormValue(name, value) {
   }
 }
 
-function getTodayAtTime(timeText) {
-  const match = timeText.match(/(\d{1,2}):(\d{2})\s*([AP]M)/i);
-  if (!match) {
-    return '';
-  }
-  const today = getDateTimeParts(new Date());
-  let hours = Number(match[1]);
-  if (match[3].toUpperCase() === 'PM' && hours !== 12) hours += 12;
-  if (match[3].toUpperCase() === 'AM' && hours === 12) hours = 0;
-  return `${today.year}-${today.month}-${today.day}T${String(hours).padStart(2, '0')}:${match[2]}`;
-}
-
-function extractCallDuration(text) {
-  const match = text.match(/(?:call completed[\s\S]{0,120}?)?(\d{1,2}:\d{2})\s*\/\s*(\d{1,2}:\d{2})/i);
-  return match ? match[2] : '';
-}
-
 function renderCallChoices() {
   callChoices.replaceChildren();
   if (pendingCallRecords.length < 2) {
@@ -257,56 +240,6 @@ async function restorePendingLead() {
   await saveFormDraft();
 }
 
-function extractConversationData(text) {
-  const data = {};
-  const firstLineName = typeof extractLeadName === 'function' ? extractLeadName(text) : '';
-  const nameMatch = text.match(/(?:hi|hey|hello)\s+([A-Z][\w'-]+(?:\s+[A-Z][\w'-]+){1,3})[,!]/i);
-  const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
-  const phoneMatch = text.match(/(?:\+?\d[\d().\s-]{7,}\d)/);
-  const appointmentMatch = text.match(/(?:appointment|meeting)[^\n]*?(?:at\s+)?(?:Saturday|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday)?[,]?\s+([A-Z][a-z]+\s+\d{1,2},\s+\d{4})[^\n]*?(\d{1,2}:\d{2}\s*[AP]M)/i);
-
-  if (firstLineName) data.fullName = firstLineName;
-  else if (nameMatch) data.fullName = nameMatch[1].trim();
-  if (emailMatch) data.email = emailMatch[0];
-  if (phoneMatch) data.phone = phoneMatch[0].replace(/\s+/g, ' ').trim();
-  if (appointmentMatch) {
-    const parsed = new Date(`${appointmentMatch[1]} ${appointmentMatch[2]}`);
-    if (!Number.isNaN(parsed.getTime())) data.appointmentDate = getMountainDateTimeValue(parsed);
-  }
-  if (/no[- ]?show/i.test(text)) data.status = 'No-show';
-  const completedCallMatch = text.match(/call completed[\s\S]{0,120}?(\d{1,2}:\d{2}\s*[AP]M)/i);
-  const callDuration = extractCallDuration(text);
-  if (callDuration) data.callDuration = callDuration;
-  if (/\b(picked up|call completed|spoke with|connected with)\b/i.test(text)) {
-    data.phonePickedUp = 'Yes';
-    data.callDateTime = completedCallMatch ? getTodayAtTime(completedCallMatch[1]) : getLocalDateTimeValue();
-  } else if (/\b(no answer|did not answer|didn't answer|no response|left a voicemail)\b/i.test(text)) {
-    data.phonePickedUp = 'No';
-    data.callDateTime = getLocalDateTimeValue();
-  }
-  const leftCall = /\b(left|had to leave|got off)\b[^.\n]{0,80}\b(call|conversation)\b/i.test(text)
-    || /\b(call|conversation)\b[^.\n]{0,80}\b(left|had to leave|got off)\b/i.test(text);
-  if (leftCall) {
-    data.disqualified = data.disqualified || 'No';
-    data.pitched = data.pitched || 'No';
-    if (/\b(objection|concern|hesitant|too expensive|can't afford|cannot afford)\b/i.test(text)) data.leaveReason = 'Objection';
-    else if (/\b(had to go|have to go|needed to go|gotta go|has to go|leave for)\b/i.test(text)) data.leaveReason = 'Had to go';
-  }
-  if (/\b(disqualified|not qualified|does not qualify)\b/i.test(text)) data.disqualified = 'Yes';
-  else if (/\b(qualified|qualifies)\b/i.test(text)) data.disqualified = 'No';
-  if (/\b(pitched|presented|went through the offer|explained the program)\b/i.test(text)) data.pitched = 'Yes';
-  if (appointmentMatch || /\b(booked|scheduled|set the appointment)\b/i.test(text)) {
-    data.disqualified = data.disqualified || 'No';
-    data.pitched = data.pitched || 'Yes';
-    data.wasSet = 'Yes';
-  }
-  if (data.wasSet === 'Yes') {
-    const closerMatch = text.match(/(?:closer|with)\s+([A-Z][\w'-]+(?:\s+[A-Z][\w'-]+){1,2})/i);
-    if (closerMatch) data.closer = closerMatch[1].trim();
-  }
-  return data;
-}
-
 function populateFromConversation() {
   const text = limitTranscript(conversationText.value.trim());
   conversationText.value = text;
@@ -316,7 +249,12 @@ function populateFromConversation() {
   }
   pendingCallRecords = extractCallRecords(text).map((record) => ({ ...record, selected: true }));
   renderCallChoices();
-  const data = extractConversationData(text);
+  const data = extractConversationData(text, {
+    extractLeadName,
+    getDateTimeParts,
+    getMountainDateTimeValue,
+    getLocalDateTimeValue
+  });
   if (pendingCallRecords.length) {
     const firstCall = pendingCallRecords[0];
     data.phonePickedUp = firstCall.phonePickedUp;
@@ -479,71 +417,15 @@ function render() {
     });
 
   count.textContent = visibleEntries.length;
-  logBody.replaceChildren();
-
-  if (!visibleEntries.length) {
-    const row = document.createElement('tr');
-    const cell = document.createElement('td');
-    cell.className = 'empty';
-    cell.colSpan = 4;
-    cell.textContent = 'No entries yet';
-    row.appendChild(cell);
-    logBody.appendChild(row);
-    return;
-  }
-
-  visibleEntries.forEach((entry) => {
-    const row = document.createElement('tr');
-    const dateCell = document.createElement('td');
-    const nameCell = document.createElement('td');
-    const statusCell = document.createElement('td');
-    const actionsCell = document.createElement('td');
-
-    const dateStack = document.createElement('div');
-    const nameStack = document.createElement('div');
-    const detailsStack = document.createElement('div');
-    const dateMain = document.createElement('span');
-    const nameMain = document.createElement('span');
-    const nameSub = document.createElement('span');
-    const detailsMain = document.createElement('span');
-    const detailsSub = document.createElement('span');
-
-    dateStack.className = nameStack.className = detailsStack.className = 'cell-stack';
-    dateMain.className = 'cell-main';
-    nameMain.className = 'cell-main';
-    detailsMain.className = entry.entryType === 'Call' || entry.status
-      ? `status ${getStatusClass(entry.status)}`
-      : 'cell-main';
-    nameSub.className = detailsSub.className = 'cell-sub';
-    dateMain.textContent = formatDate(getEntryDateTime(entry));
-    nameMain.textContent = entry.entryType === 'Call' ? entry.name : entry.fullName;
-    nameSub.textContent = entry.entryType === 'Call' ? '' : [entry.email, entry.phone].filter(Boolean).join(' | ');
-    detailsMain.textContent = entry.entryType === 'Call' ? entry.status : entry.status;
-    detailsSub.textContent = entry.entryType === 'Call'
-      ? `Call: ${formatDateTime(entry.callDateTime || entry.pickupDateTime || entry.timestamp)} | Picked up: ${entry.phonePickedUp || '-'} | Duration: ${entry.callDuration || '-'}`
-      : `Call: ${formatDateTime(entry.callDateTime)} | Last text: ${entry.lastTextMessage || '-'} | Appt: ${formatDateTime(entry.appointmentDate)} | Closer: ${entry.closer || '-'} | Duration: ${entry.callDuration || '-'}${entry.leaveReason ? ` | Leave reason: ${entry.leaveReason}` : ''} | Disqualified: ${entry.disqualified || '-'} | Pitched: ${entry.pitched || '-'} | Set: ${entry.wasSet || '-'}`;
-    dateStack.appendChild(dateMain);
-    nameStack.append(nameMain, nameSub);
-    detailsStack.append(detailsMain, detailsSub);
-    dateCell.appendChild(dateStack);
-    nameCell.appendChild(nameStack);
-    statusCell.appendChild(detailsStack);
-    const actions = document.createElement('div');
-    const editButton = document.createElement('button');
-    const deleteButton = document.createElement('button');
-    actions.className = 'row-actions';
-    editButton.type = deleteButton.type = 'button';
-    editButton.textContent = 'Edit';
-    deleteButton.textContent = 'Delete';
-    deleteButton.className = 'delete';
-    editButton.title = 'Edit entry';
-    deleteButton.title = 'Delete entry';
-    editButton.addEventListener('click', () => startEditing(entry));
-    deleteButton.addEventListener('click', () => deleteEntry(entry));
-    actions.append(editButton, deleteButton);
-    actionsCell.appendChild(actions);
-    row.append(dateCell, nameCell, statusCell, actionsCell);
-    logBody.appendChild(row);
+  renderEntryTable(logBody, visibleEntries.map((entry) => ({
+    ...entry,
+    dateTime: getEntryDateTime(entry)
+  })), {
+    formatDate,
+    formatDateTime,
+    getStatusClass,
+    onEdit: startEditing,
+    onDelete: deleteEntry
   });
 }
 

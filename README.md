@@ -185,9 +185,11 @@ Anyone with access to the Chrome profile may be able to access the extension dat
 - `scripts/entry-model.js`: Entry status normalization and record shaping
 - `scripts/popup-storage.js`: Chrome storage access, migration, and draft persistence
 - `scripts/queue-view.js`: Appointment queue DOM rendering and follow-up actions
+- `scripts/entry-view.js`: Entry table rendering and row actions
 - `scripts/summary-model.js`: Daily and hourly reporting calculations
 - `scripts/dom-utils.js`: Safe reusable DOM construction helpers
 - `scripts/conversation-parser.js`: Conversation and call-record extraction
+- `scripts/conversation-import.js`: Form-field extraction from pasted conversations
 - `scripts/timezone.js`: Timezone conversion and date formatting
 - `tests/`: Parser, timezone, queue, entry-model, and content-script behavior tests
 
