@@ -30,6 +30,7 @@ const DRAFT_KEY = 'conversationDraft';
 const PENDING_LEAD_KEY = 'pendingLead';
 const IMPORT_SEED_KEY = 'importedNoShowSeeded';
 const ENTRIES_KEY = 'entries';
+const REPORTING_TIME_ZONE_KEY = 'reportingTimeZone';
 const DEFAULT_TIME_ZONE_KEY = 'defaultAppointmentTimeZone';
 const MAX_TRANSCRIPT_LENGTH = 100000;
 
@@ -105,14 +106,32 @@ document.getElementById('call-record-file').addEventListener('change', (event) =
   reader.readAsText(file);
 });
 
+function normalizeEntryStatus(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return entry;
+  }
+  const hasBookedAppointment = entry.wasSet === 'Yes' || Boolean(entry.appointmentDate && String(entry.appointmentDate).length > 0);
+  if (hasBookedAppointment) {
+    return { ...entry, status: 'Booked' };
+  }
+  if (entry.phonePickedUp === 'Yes') {
+    return { ...entry, status: 'Picked Up' };
+  }
+  if (entry.phonePickedUp === 'No') {
+    return { ...entry, status: 'No Answer' };
+  }
+  return { ...entry, status: entry.status || '' };
+}
+
 function getUnifiedEntries() {
   return [
     ...logs.map((entry) => ({ ...entry, recordType: 'call' })),
-    ...manualEntries.map((entry) => ({ ...entry, recordType: 'entry' }))
+    ...manualEntries.map((entry) => ({ ...normalizeEntryStatus(entry), recordType: 'entry' }))
   ];
 }
 
 async function persistEntries() {
+  manualEntries = manualEntries.map(normalizeEntryStatus);
   await chrome.storage.local.set({
     [ENTRIES_KEY]: getUnifiedEntries(),
     callLogs: logs,
@@ -120,9 +139,25 @@ async function persistEntries() {
   });
 }
 
-function getLocalDateValue(date = new Date()) {
+function getTimeZoneDisplayName(timeZone) {
+  const names = {
+    'America/Denver': 'Mountain Time',
+    'America/Los_Angeles': 'Pacific Time',
+    'America/Chicago': 'Central Time',
+    'America/New_York': 'Eastern Time',
+    UTC: 'UTC'
+  };
+  return names[timeZone] || String(timeZone || '').replace(/_/g, ' ');
+}
+
+function getReportingTimeZone() {
+  const select = document.getElementById('reporting-time-zone');
+  return select?.value || DISPLAY_TIME_ZONE;
+}
+
+function getLocalDateValue(date = new Date(), timeZone = getReportingTimeZone()) {
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: DISPLAY_TIME_ZONE,
+    timeZone,
     year: 'numeric', month: '2-digit', day: '2-digit'
   }).formatToParts(date).reduce((values, part) => {
     values[part.type] = part.value;
@@ -358,18 +393,18 @@ function isToday(timestamp) {
   return getLocalDateValue(date) === getLocalDateValue();
 }
 
-function formatDate(timestamp) {
+function formatDate(timestamp, timeZone = getReportingTimeZone()) {
   return new Intl.DateTimeFormat(undefined, {
-    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone: DISPLAY_TIME_ZONE
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone
   }).format(parseStoredDateTime(timestamp));
 }
 
-function formatDateTime(timestamp) {
+function formatDateTime(timestamp, timeZone = getReportingTimeZone()) {
   if (!timestamp) {
     return '-';
   }
   return new Intl.DateTimeFormat('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone: DISPLAY_TIME_ZONE
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone
   }).format(parseStoredDateTime(timestamp));
 }
 
@@ -378,7 +413,10 @@ function isVisible(timestamp) {
 }
 
 function getStatusClass(status) {
-  return ['Picked Up', 'Showed'].includes(status) ? 'picked-up' : 'no-answer';
+  if (['Picked Up', 'Showed', 'Booked'].includes(status)) {
+    return status === 'Booked' ? 'booked' : 'picked-up';
+  }
+  return 'no-answer';
 }
 
 function getHourlyCallTime(entry) {
@@ -388,7 +426,7 @@ function getHourlyCallTime(entry) {
 
 function getMountainHour(date) {
   return Number(new Intl.DateTimeFormat('en-US', {
-    timeZone: DISPLAY_TIME_ZONE,
+    timeZone: getReportingTimeZone(),
     hour: 'numeric', hour12: false
   }).format(date));
 }
@@ -405,7 +443,142 @@ function getDailyEntries() {
   });
 }
 
+function renderAppointmentQueue() {
+  const queue = document.getElementById('appointment-queue');
+  const summaryHeading = document.getElementById('summary-timezone-heading');
+  if (summaryHeading) {
+    summaryHeading.textContent = getTimeZoneDisplayName(getReportingTimeZone());
+  }
+  if (!queue) return;
+  const appointments = manualEntries
+    .filter((entry) => entry.wasSet === 'Yes' && entry.appointmentDate)
+    .map((entry) => {
+      const appointmentInstant = new Date(entry.appointmentDate);
+      const followUpDate = entry.followUpDate ? parseFollowUpDate(entry.followUpDate) : null;
+      const now = Date.now();
+      const diffDays = Math.ceil((appointmentInstant.getTime() - now) / 86400000);
+      const followUpDiffDays = followUpDate && Number.isFinite(followUpDate.getTime())
+        ? Math.ceil((followUpDate.getTime() - now) / 86400000)
+        : null;
+      return {
+        ...entry,
+        appointmentInstant,
+        followUpDate,
+        followUpDiffDays,
+        label: (() => {
+          if (appointmentInstant.getTime() < now) {
+            return 'Past';
+          }
+          if (diffDays <= 0) return 'Today';
+          if (diffDays === 1) return 'Tomorrow';
+          if (diffDays <= 7) return `In ${diffDays} days`;
+          if (diffDays <= 14) return 'In 2 weeks';
+          return `In ${Math.ceil(diffDays / 7)} weeks`;
+        })()
+      };
+    })
+    .filter((entry) => entry.appointmentInstant.getTime() >= Date.now())
+    .sort((a, b) => a.appointmentInstant - b.appointmentInstant);
+
+  queue.replaceChildren();
+  if (!appointments.length) {
+    const empty = document.createElement('li');
+    empty.className = 'queue-item';
+    empty.innerHTML = '<div class="queue-item-title">No upcoming appointments</div><div class="queue-item-meta">Past bookings are hidden from follow-up. New appointments will appear here.</div>';
+    queue.appendChild(empty);
+    return;
+  }
+
+  appointments.forEach((entry) => {
+    const item = document.createElement('li');
+    item.className = 'queue-item';
+
+    const head = document.createElement('div');
+    head.className = 'queue-item-head';
+
+    const title = document.createElement('div');
+    title.className = 'queue-item-title';
+    title.textContent = entry.fullName || 'Unknown lead';
+
+    const badge = document.createElement('span');
+    badge.className = 'queue-badge';
+    badge.textContent = entry.label;
+
+    const rightSide = document.createElement('div');
+    rightSide.className = 'queue-item-head-right';
+    const when = document.createElement('span');
+    const whenText = entry.followUpDate ? formatFollowUpWindow(entry.followUpDate) : 'No follow-up';
+    const whenClass = whenText === 'No follow-up'
+      ? 'is-neutral'
+      : whenText === 'Due today' || whenText === 'Due now'
+        ? 'is-due'
+        : '';
+    when.className = `queue-item-when ${whenClass}`;
+    when.textContent = whenText;
+    rightSide.append(badge, when);
+
+    const meta = document.createElement('div');
+    meta.className = 'queue-item-meta';
+
+    const detailLine = document.createElement('div');
+    detailLine.className = 'queue-item-meta-row';
+    detailLine.innerHTML = `
+      <span class="queue-item-meta-label">Set:</span>
+      <span class="queue-item-meta-value">${entry.createdAt ? formatDate(entry.createdAt) : 'Unknown'}</span>
+      <span class="queue-item-meta-divider">•</span>
+      <span class="queue-item-meta-label">Appt:</span>
+      <span class="queue-item-meta-value">${formatDateTime(entry.appointmentDate)}</span>
+    `;
+
+    const followUpLine = document.createElement('div');
+    followUpLine.className = 'queue-item-meta-row';
+    const followUpText = entry.followUpDate ? formatFollowUpWindow(entry.followUpDate) : 'No follow-up set';
+    followUpLine.innerHTML = `
+      <span class="queue-item-meta-label">Follow-up:</span>
+      <span class="queue-item-meta-value">${entry.followUpDate ? formatDate(normalizeFollowUpDateValue(entry.followUpDate)) : 'Not set'}</span>
+    `;
+
+    const controls = document.createElement('div');
+    controls.className = 'queue-item-controls';
+    const followUpInput = document.createElement('input');
+    followUpInput.type = 'date';
+    followUpInput.value = normalizeFollowUpDateValue(entry.followUpDate) || '';
+    const saveFollowUpButton = document.createElement('button');
+    saveFollowUpButton.type = 'button';
+    saveFollowUpButton.textContent = 'Save';
+    saveFollowUpButton.addEventListener('click', async () => {
+      const index = manualEntries.findIndex((item) => item.id === entry.id);
+      if (index < 0) {
+        return;
+      }
+      manualEntries[index].followUpDate = normalizeFollowUpDateValue(followUpInput.value) || '';
+      manualEntries[index] = normalizeEntryStatus(manualEntries[index]);
+      await persistEntries();
+      renderAppointmentQueue();
+      render();
+    });
+    controls.append(followUpInput, saveFollowUpButton);
+
+    const closerLine = document.createElement('div');
+    closerLine.className = 'queue-item-meta-row';
+    closerLine.innerHTML = `
+      <span class="queue-item-meta-label">Closer:</span>
+      <span class="queue-item-meta-value">${entry.closer || 'No closer listed'}</span>
+    `;
+
+    meta.append(detailLine, followUpLine, closerLine, controls);
+
+    head.append(title, rightSide);
+    item.append(head, meta);
+    queue.appendChild(item);
+  });
+}
+
 function renderPickupSummary() {
+  const summaryHeading = document.getElementById('summary-timezone-heading');
+  if (summaryHeading) {
+    summaryHeading.textContent = `${getTimeZoneDisplayName(getReportingTimeZone())} time`;
+  }
   const hours = Array.from({ length: 17 }, (_, index) => index + 5);
   const entries = getDailyEntries().filter((entry) => entry.entryType === 'Call'
     || ['Yes', 'No'].includes(entry.phonePickedUp));
@@ -565,7 +738,7 @@ async function loadLogs() {
     manualEntries = Array.isArray(stored.manualEntries) ? stored.manualEntries : [];
   }
   logs = logs.map((entry) => ({ ...entry, id: entry.id || createEntryId() }));
-  manualEntries = manualEntries.map((entry) => ({ ...entry, id: entry.id || createEntryId() }));
+  manualEntries = manualEntries.map((entry) => ({ ...normalizeEntryStatus(entry), id: entry.id || createEntryId() }));
   if (!stored[IMPORT_SEED_KEY]) {
     if (!manualEntries.some((entry) => entry.id === importedNoShow.id)) {
       manualEntries.push(importedNoShow);
@@ -575,6 +748,7 @@ async function loadLogs() {
   await persistEntries();
   render();
   renderPickupSummary();
+  renderAppointmentQueue();
 }
 
 function getDefaultAppointmentTimeZone() {
@@ -586,11 +760,21 @@ function getEntryFormData(form) {
   const formData = new FormData(form);
   const appointmentDate = formData.get('appointmentDate');
   const appointmentTimeZone = formData.get('appointmentTimeZone') || getDefaultAppointmentTimeZone();
+  const followUpDate = formData.get('followUpDate');
+  const wasSet = formData.get('wasSet');
+  const phonePickedUp = formData.get('phonePickedUp');
+  const normalizedStatus = wasSet === 'Yes' || appointmentDate
+    ? 'Booked'
+    : phonePickedUp === 'Yes'
+      ? 'Picked Up'
+      : phonePickedUp === 'No'
+        ? 'No Answer'
+        : '';
   return {
     fullName: formData.get('fullName').trim(),
     email: formData.get('email').trim(),
     phone: formData.get('phone').trim(),
-    phonePickedUp: formData.get('phonePickedUp'),
+    phonePickedUp,
     callDateTime: formData.get('callDateTime'),
     callDuration: formData.get('callDuration'),
     lastTextMessage: formData.get('lastTextMessage').trim(),
@@ -598,11 +782,12 @@ function getEntryFormData(form) {
     disqualified: formData.get('disqualified'),
     disqualificationReason: formData.get('disqualificationReason').trim(),
     pitched: formData.get('pitched'),
-    wasSet: formData.get('wasSet'),
+    wasSet,
     closer: formData.get('closer').trim(),
     appointmentDate: appointmentDate ? zonedDateTimeToDate(appointmentDate, appointmentTimeZone).toISOString() : '',
+    followUpDate: followUpDate || '',
     appointmentTimeZone,
-    status: formData.get('wasSet') === 'Yes' ? 'Booked' : '',
+    status: normalizedStatus,
     notes: formData.get('notes').trim(),
     conversationText: limitTranscript(conversationText.value.trim())
   };
@@ -666,6 +851,9 @@ function startEditing(entry) {
   if (values.appointmentDate) {
     values.appointmentTimeZone = values.appointmentTimeZone || getDefaultAppointmentTimeZone();
     values.appointmentDate = formatDateTimeInput(values.appointmentDate, values.appointmentTimeZone);
+  }
+  if (values.followUpDate) {
+    values.followUpDate = values.followUpDate.slice(0, 10);
   }
   Object.entries(values).forEach(([name, value]) => {
     if (['entryType', 'sourceType', 'sourceIndex', 'recordType', 'createdAt', 'timestamp'].includes(name)) {
@@ -777,14 +965,19 @@ document.getElementById('manual-entry-form').addEventListener('submit', async (e
   } else {
     const recordsToSave = selectedCallRecords.length ? selectedCallRecords : [null];
     recordsToSave.forEach((record) => {
+      const resolvedStatus = entry.wasSet === 'Yes'
+        ? 'Booked'
+        : record
+          ? (record.phonePickedUp === 'Yes' ? 'Picked Up' : 'No Answer')
+          : (entry.phonePickedUp === 'Yes' ? 'Picked Up' : entry.phonePickedUp === 'No' ? 'No Answer' : '');
       manualEntries.push({
         ...entry,
         ...(record ? {
           phonePickedUp: record.phonePickedUp,
           callDateTime: record.callDateTime,
           callDuration: record.callDuration,
-          status: record.phonePickedUp === 'Yes' ? 'Picked Up' : 'No Answer'
-        } : {}),
+          status: resolvedStatus
+        } : { status: resolvedStatus }),
         id: createEntryId(),
         createdAt: new Date().toISOString()
       });
@@ -795,6 +988,7 @@ document.getElementById('manual-entry-form').addEventListener('submit', async (e
   resetEntryForm();
   render();
   renderPickupSummary();
+  renderAppointmentQueue();
 });
 
 function updateConditionalFields() {
@@ -811,15 +1005,23 @@ function updateConditionalFields() {
 }
 
 async function loadDefaultAppointmentTimeZone() {
-  const stored = await chrome.storage.local.get({ [DEFAULT_TIME_ZONE_KEY]: DISPLAY_TIME_ZONE });
-  const value = stored[DEFAULT_TIME_ZONE_KEY] || DISPLAY_TIME_ZONE;
+  const stored = await chrome.storage.local.get({
+    [DEFAULT_TIME_ZONE_KEY]: DISPLAY_TIME_ZONE,
+    [REPORTING_TIME_ZONE_KEY]: DISPLAY_TIME_ZONE
+  });
+  const defaultValue = stored[DEFAULT_TIME_ZONE_KEY] || DISPLAY_TIME_ZONE;
+  const reportingValue = stored[REPORTING_TIME_ZONE_KEY] || DISPLAY_TIME_ZONE;
   const defaultSelect = document.getElementById('default-time-zone');
+  const reportingSelect = document.getElementById('reporting-time-zone');
   const appointmentTimeZone = document.querySelector('[name="appointmentTimeZone"]');
   if (defaultSelect) {
-    defaultSelect.value = value;
+    defaultSelect.value = defaultValue;
+  }
+  if (reportingSelect) {
+    reportingSelect.value = reportingValue;
   }
   if (appointmentTimeZone && !appointmentTimeZone.value) {
-    appointmentTimeZone.value = value;
+    appointmentTimeZone.value = defaultValue;
   }
 }
 
@@ -847,6 +1049,15 @@ function updateCallDateTime() {
     callDateTime.value = getLocalDateTimeValue();
   }
 }
+
+document.getElementById('reporting-time-zone').addEventListener('change', async () => {
+  const value = document.getElementById('reporting-time-zone').value;
+  await chrome.storage.local.set({ [REPORTING_TIME_ZONE_KEY]: value });
+  render();
+  renderPickupSummary();
+  renderAppointmentQueue();
+  saveFormDraft();
+});
 
 document.getElementById('default-time-zone').addEventListener('change', async () => {
   const value = document.getElementById('default-time-zone').value;
@@ -892,4 +1103,6 @@ document.querySelectorAll('[data-sort]').forEach((button) => {
     render();
   });
 });
-loadDefaultAppointmentTimeZone().then(restoreFormDraft).then(restorePendingLead).then(loadLogs);
+loadDefaultAppointmentTimeZone().then(restoreFormDraft).then(restorePendingLead).then(loadLogs).then(() => {
+  renderAppointmentQueue();
+});

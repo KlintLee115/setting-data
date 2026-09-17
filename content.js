@@ -19,6 +19,7 @@
   let overlayVisible = false;
   let lastUrl = window.location.href;
   let host = null;
+  let saveInProgress = false;
 
   function normalizeName(value) {
     return value.replace(/\s+/g, ' ').replace(/\s+\.$/, '').trim();
@@ -57,6 +58,9 @@
         if (!/extension context invalidated/i.test(String(error?.message || error))) {
           console.error('Could not save call:', error);
         }
+        setOverlayMessage(/extension context invalidated/i.test(String(error?.message || error))
+          ? 'Reload this page to reconnect the logger.'
+          : 'Could not save call. Try again.');
       });
   }
 
@@ -73,18 +77,20 @@
   }
 
   function publishLeadSafely(name, callDateTime = '') {
-    void chrome.storage.local.set({
-      [PENDING_LEAD_KEY]: {
-        fullName: name,
-        callDateTime,
-        sourceUrl: window.location.href,
-        updatedAt: new Date().toISOString()
-      }
-    }).catch((error) => {
+    void Promise.resolve()
+      .then(() => chrome.storage.local.set({
+        [PENDING_LEAD_KEY]: {
+          fullName: name,
+          callDateTime,
+          sourceUrl: window.location.href,
+          updatedAt: new Date().toISOString()
+        }
+      }))
+      .catch((error) => {
       if (!/extension context invalidated/i.test(String(error?.message || error))) {
         console.error('Could not publish lead:', error);
       }
-    });
+      });
   }
 
   function ensureOverlay() {
@@ -103,6 +109,7 @@
         .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
         button { min-height: 30px; border: 1px solid #b8cbe2; border-radius: 5px; background: #fff; color: #245a95; cursor: pointer; font: inherit; font-weight: 700; }
         button:hover { background: #f0f4f9; }
+        .message { min-height: 14px; color: #9b3034; font-size: 11px; }
       </style>
       <div class="panel">
         <div class="name"></div>
@@ -110,51 +117,64 @@
           <button class="picked-up" type="button">Picked up</button>
           <button class="no-answer" type="button">No answer</button>
         </div>
+        <div class="message" aria-live="polite"></div>
       </div>`;
-    host.shadowRoot.querySelector('.picked-up').addEventListener('click', () => {
-      saveCallSafely('Picked Up');
-    });
-    host.shadowRoot.querySelector('.no-answer').addEventListener('click', () => {
-      saveCallSafely('No Answer');
-    });
+    host.shadowRoot.querySelector('.picked-up').addEventListener('click', () => saveCallSafely('Picked Up'));
+    host.shadowRoot.querySelector('.no-answer').addEventListener('click', () => saveCallSafely('No Answer'));
     document.documentElement.appendChild(host);
     return host;
   }
 
   async function saveCall(status) {
-    if (!currentName) {
+    if (!currentName || saveInProgress) {
       return;
     }
+    saveInProgress = true;
+    setOverlayMessage('Saving...');
 
-    const callDateTime = getLocalDateTimeValue();
-    publishLeadSafely(currentName, callDateTime);
-    const stored = await chrome.storage.local.get({ entries: [], callLogs: [], manualEntries: [] });
-    const entries = Array.isArray(stored.entries) && stored.entries.length
-      ? stored.entries
-      : [
-        ...(Array.isArray(stored.callLogs) ? stored.callLogs : []).map((entry) => ({ ...entry, recordType: 'call' })),
-        ...(Array.isArray(stored.manualEntries) ? stored.manualEntries : []).map((entry) => ({ ...entry, recordType: 'entry' }))
-      ];
-    const timestamp = new Date().toISOString();
-    const durationMatch = document.body.innerText.match(/(?:call completed[\s\S]{0,120}?)?(\d{1,2}:\d{2})\s*\/\s*(\d{1,2}:\d{2})/i);
-    const call = {
-      id: `${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}`,
-      recordType: 'call',
-      name: currentName,
-      status,
-      phonePickedUp: status === 'Picked Up' ? 'Yes' : 'No',
-      callDateTime,
-      callDuration: durationMatch ? durationMatch[2] : '',
-      timestamp
-    };
-    entries.push(call);
-    await chrome.storage.local.set({
-      entries,
-      callLogs: entries.filter((entry) => entry.recordType === 'call'),
-      manualEntries: entries.filter((entry) => entry.recordType !== 'call')
-    });
-    overlayVisible = false;
-    renderOverlay();
+    try {
+      const callDateTime = getLocalDateTimeValue();
+      publishLeadSafely(currentName, callDateTime);
+      const stored = await chrome.storage.local.get({ entries: [], callLogs: [], manualEntries: [] });
+      const entries = Array.isArray(stored.entries) && stored.entries.length
+        ? stored.entries
+        : [
+          ...(Array.isArray(stored.callLogs) ? stored.callLogs : []).map((entry) => ({ ...entry, recordType: 'call' })),
+          ...(Array.isArray(stored.manualEntries) ? stored.manualEntries : []).map((entry) => ({ ...entry, recordType: 'entry' }))
+        ];
+      const timestamp = new Date().toISOString();
+      const durationMatch = document.body.innerText.match(/(?:call completed[\s\S]{0,120}?)?(\d{1,2}:\d{2})\s*\/\s*(\d{1,2}:\d{2})/i);
+      const call = {
+        id: `${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}`,
+        recordType: 'call',
+        name: currentName,
+        status,
+        phonePickedUp: status === 'Picked Up' ? 'Yes' : 'No',
+        callDateTime,
+        callDuration: durationMatch ? durationMatch[2] : '',
+        timestamp
+      };
+      entries.push(call);
+      await chrome.storage.local.set({
+        entries,
+        callLogs: entries.filter((entry) => entry.recordType === 'call'),
+        manualEntries: entries.filter((entry) => entry.recordType !== 'call')
+      });
+      overlayVisible = false;
+      renderOverlay();
+    } finally {
+      saveInProgress = false;
+    }
+  }
+
+  function setOverlayMessage(message) {
+    if (!host) {
+      return;
+    }
+    const messageElement = host.shadowRoot.querySelector('.message');
+    if (messageElement) {
+      messageElement.textContent = message;
+    }
   }
 
   function renderOverlay() {

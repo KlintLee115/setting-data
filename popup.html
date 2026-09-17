@@ -23,6 +23,27 @@
     .settings-panel { display: grid; gap: 10px; margin-bottom: 12px; padding: 12px; border: 1px solid #e1e7ef; border-radius: 9px; background: #ffffff; }
     .settings-panel label { display: grid; gap: 4px; color: #718096; font-size: 10px; font-weight: 700; }
     .settings-panel select { width: 100%; min-height: 32px; padding: 0 8px; border: 1px solid #d8e0eb; border-radius: 6px; color: #29364a; font: inherit; font-size: 11px; }
+    .queue-wrap { padding: 12px; border: 1px solid #e1e7ef; border-radius: 9px; background: #ffffff; }
+    .queue-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .queue-item { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid #eaf0f8; border-radius: 8px; background: #f8fbff; }
+    .queue-item-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .queue-item-title { font-size: 11px; font-weight: 700; color: #172033; }
+    .queue-item-head-right { display: grid; justify-items: end; gap: 3px; }
+    .queue-badge { display: inline-flex; align-items: center; padding: 3px 6px; border-radius: 999px; background: #e9f1ff; color: #245a95; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .queue-item-when { color: #245a95; font-size: 9px; font-weight: 700; }
+    .queue-item-when.is-neutral { color: #718096; font-weight: 600; }
+    .queue-item-when.is-due { color: #9a5b00; }
+    .queue-item-meta { display: grid; gap: 4px; color: #718096; font-size: 9px; }
+    .queue-item-meta-row { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; line-height: 1.3; }
+    .queue-item-meta-label { color: #718096; font-weight: 700; }
+    .queue-item-meta-value { color: #29364a; }
+    .queue-item-meta-divider { color: #a0aec0; }
+    .queue-item-follow-up { color: #245a95; font-weight: 700; }
+    .queue-item-follow-up.is-due { color: #9a5b00; }
+    .queue-item-follow-up.is-overdue { color: #b42318; }
+    .queue-item-controls { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+    .queue-item-controls input[type="date"] { width: 120px; min-height: 26px; padding: 0 6px; border: 1px solid #d8e0eb; border-radius: 5px; color: #29364a; font: inherit; font-size: 10px; }
+    .queue-item-controls button { min-height: 26px; padding: 0 8px; border: 1px solid #b8cbe2; border-radius: 5px; background: #ffffff; color: #245a95; font: inherit; font-size: 10px; font-weight: 700; }
     .entry-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; border: 1px solid #e1e7ef; border-radius: 9px; background: #ffffff; }
     .entry-form label { display: grid; gap: 4px; color: #718096; font-size: 10px; font-weight: 700; }
     .entry-form input { width: 100%; min-height: 32px; padding: 0 8px; border: 1px solid #d8e0eb; border-radius: 6px; color: #29364a; font: inherit; font-size: 11px; }
@@ -75,6 +96,7 @@
     tbody tr:last-child td { border-bottom: 0; }
     .status { display: inline-block; padding: 4px 6px; border-radius: 5px; font-size: 10px; font-weight: 700; }
     .status.picked-up { color: #17633f; background: #e1f4eb; }
+    .status.booked { color: #245a95; background: #e9f1ff; }
     .status.no-answer { color: #9b3034; background: #fae5e6; }
     .empty { padding: 28px 14px; color: #718096; font-size: 12px; text-align: center; }
     .cell-stack { display: grid; gap: 3px; min-width: 0; }
@@ -108,12 +130,22 @@
     </div>
     <div class="settings-panel">
       <label>
+        Reporting timezone
+        <select id="reporting-time-zone" aria-label="Reporting timezone">
+          <option value="America/Denver">Mountain Time</option>
+          <option value="America/Los_Angeles">Pacific Time</option>
+          <option value="America/Chicago">Central Time</option>
+          <option value="America/New_York">Eastern Time</option>
+          <option value="UTC">UTC</option>
+        </select>
+      </label>
+      <label>
         Default customer timezone
         <select id="default-time-zone" aria-label="Default customer timezone">
-          <option value="America/Denver">Mountain (MDT)</option>
-          <option value="America/Los_Angeles">Pacific (PDT)</option>
-          <option value="America/Chicago">Central (CDT)</option>
-          <option value="America/New_York">Eastern (EDT)</option>
+          <option value="America/Denver">Mountain Time</option>
+          <option value="America/Los_Angeles">Pacific Time</option>
+          <option value="America/Chicago">Central Time</option>
+          <option value="America/New_York">Eastern Time</option>
           <option value="UTC">UTC</option>
         </select>
       </label>
@@ -134,7 +166,7 @@
         <label class="full-width">Phone<input name="phone" type="tel" autocomplete="tel"></label>
         <p class="stage-heading">2. Phone</p>
         <label class="full-width">Picked up?<select id="phone-picked-up" name="phonePickedUp" required><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
-        <label class="full-width">Call date/time (MDT)<input name="callDateTime" type="datetime-local" required></label>
+        <label class="full-width">Call date/time<input name="callDateTime" type="datetime-local" required></label>
         <label class="conditional" data-show-when="phone-picked-up=Yes">Call duration<input name="callDuration" type="text" placeholder="MM:SS"></label>
         <label class="conditional full-width" data-show-when="phone-picked-up=No">Last text message sent<textarea name="lastTextMessage" placeholder="Paste the last message you sent"></textarea></label>
       </div>
@@ -152,7 +184,8 @@
         <label class="full-width">Were you able to set?<select id="was-set" name="wasSet"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
         <label class="conditional" data-show-when="was-set=Yes">Closer<input name="closer" type="text"></label>
         <label class="conditional" data-show-when="was-set=Yes">Appointment date/time<input name="appointmentDate" type="datetime-local"></label>
-        <label class="conditional" data-show-when="was-set=Yes">Appointment timezone<select name="appointmentTimeZone"><option value="America/Denver">Mountain (MDT)</option><option value="America/Los_Angeles">Pacific (PDT)</option><option value="America/Chicago">Central (CDT)</option><option value="America/New_York">Eastern (EDT)</option><option value="UTC">UTC</option></select></label>
+        <label class="conditional" data-show-when="was-set=Yes">Follow-up date<input name="followUpDate" type="date"></label>
+        <label class="conditional" data-show-when="was-set=Yes">Appointment timezone<select name="appointmentTimeZone"><option value="America/Denver">Mountain Time</option><option value="America/Los_Angeles">Pacific Time</option><option value="America/Chicago">Central Time</option><option value="America/New_York">Eastern Time</option><option value="UTC">UTC</option></select></label>
       </div>
       <div class="stage conditional" id="conversation-outcome">
         <p class="stage-heading">Conversation outcome</p>
@@ -169,6 +202,10 @@
         <thead><tr><th><button type="button" data-sort="date">Date / time</button></th><th><button type="button" data-sort="name">Name / email</button></th><th><button type="button" data-sort="status">Status / details</button></th><th>Actions</th></tr></thead>
         <tbody id="log-body"></tbody>
       </table>
+    </div>
+    <h2 class="section-title">Appointment follow-up queue</h2>
+    <div class="queue-wrap">
+      <ul class="queue-list" id="appointment-queue"></ul>
     </div>
     <h2 class="section-title">Daily summary</h2>
     <div class="summary-controls">
@@ -190,7 +227,7 @@
     <h2 class="section-title">Pickup rate tracker</h2>
     <div class="summary-wrap">
       <table class="summary-table">
-        <thead><tr><th>Mountain time (MDT)</th><th>Calls</th><th>Picked up</th><th>Rate</th></tr></thead>
+        <thead><tr><th id="summary-timezone-heading">Reporting timezone</th><th>Calls</th><th>Picked up</th><th>Rate</th></tr></thead>
         <tbody id="pickup-summary-body"></tbody>
       </table>
     </div>

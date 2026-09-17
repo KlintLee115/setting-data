@@ -5,15 +5,19 @@ const vm = require('node:vm');
 
 const contentScript = fs.readFileSync(`${__dirname}/content.js`, 'utf8');
 
-function loadContentScript(storageGetError) {
-  let pickedUpHandler;
+function loadContentScript(storageGetError, storageSetError) {
+  const handlers = {};
   const consoleErrors = [];
   const pickedUpButton = {
     addEventListener(eventName, handler) {
-      if (eventName === 'click') pickedUpHandler = handler;
+      handlers[eventName] = handler;
     }
   };
-  const noAnswerButton = { addEventListener() {} };
+  const noAnswerButton = {
+    addEventListener(eventName, handler) {
+      if (eventName === 'click') handlers.noAnswer = handler;
+    }
+  };
   const shadowRoot = {
     set innerHTML(value) {},
     querySelector(selector) {
@@ -49,6 +53,7 @@ function loadContentScript(storageGetError) {
             return Promise.reject(storageGetError);
           },
           set() {
+            if (storageSetError) throw storageSetError;
             return Promise.resolve();
           }
         }
@@ -72,7 +77,11 @@ function loadContentScript(storageGetError) {
   };
 
   vm.runInNewContext(contentScript, context);
-  return { clickPickedUp: () => pickedUpHandler(), consoleErrors };
+  return {
+    clickNoAnswer: () => handlers.noAnswer(),
+    clickPickedUp: () => handlers.click(),
+    consoleErrors
+  };
 }
 
 async function flushPromises() {
@@ -101,6 +110,26 @@ test('ignores extension context invalidation from the call logger', async () => 
 test('reports unrelated call logger storage errors', async () => {
   const { clickPickedUp, consoleErrors } = loadContentScript(new Error('Storage unavailable'));
   clickPickedUp();
+  await flushPromises();
+
+  assert.equal(consoleErrors.length, 1);
+  assert.equal(consoleErrors[0][0], 'Could not save call:');
+  assert.match(consoleErrors[0][1].message, /Storage unavailable/);
+});
+
+test('ignores synchronous extension context invalidation while publishing a lead', async () => {
+  const { consoleErrors } = loadContentScript(
+    new Error('Storage unavailable'),
+    new Error('Extension context invalidated.')
+  );
+  await flushPromises();
+
+  assert.deepEqual(consoleErrors, []);
+});
+
+test('handles the no-answer button through the same save path', async () => {
+  const { clickNoAnswer, consoleErrors } = loadContentScript(new Error('Storage unavailable'));
+  clickNoAnswer();
   await flushPromises();
 
   assert.equal(consoleErrors.length, 1);
