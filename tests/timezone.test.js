@@ -5,7 +5,7 @@ const {
   formatFollowUpWindow,
   parseStoredDateTime,
   zonedDateTimeToDate
-} = require('./timezone');
+} = require('../scripts/timezone');
 
 test('converts MDT appointment time to its UTC instant', () => {
   assert.equal(
@@ -73,3 +73,4 @@ test('formats follow-up due windows for in-row queue updates', () => {
   assert.equal(formatFollowUpWindow('2026-09-16T00:00:00.000Z', now), 'Due today');
   assert.equal(formatFollowUpWindow('not-a-date', now), 'No follow-up set');
 });
+

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const contentScript = fs.readFileSync(`${__dirname}/content.js`, 'utf8');
+const contentScript = fs.readFileSync(`${__dirname}/../scripts/content.js`, 'utf8');
 
 function loadContentScript(storageGetError, storageSetError) {
   const handlers = {};

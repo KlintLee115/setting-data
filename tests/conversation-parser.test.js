@@ -2,10 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { extractCallRecords } = require('./conversation-parser');
+const { extractCallRecords } = require('../scripts/conversation-parser');
 
 function sample(name) {
-  return fs.readFileSync(path.join(__dirname, '..', name), 'utf8');
+  return fs.readFileSync(path.join(__dirname, '..', '..', name), 'utf8');
 }
 
 test('sample 1 produces one KL call record', () => {

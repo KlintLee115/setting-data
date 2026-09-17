@@ -178,6 +178,21 @@ Anyone with access to the Chrome profile may be able to access the extension dat
 ## Project Files
 
 - `manifest.json`: Chrome extension configuration
-- `content.js`: GoHighLevel page detection, floating logger, and local call persistence
 - `popup.html`: Dashboard and data-entry interface
-- `popup.js`: Importer, storage, reporting, sorting, editing, deletion, backup, and restore logic
+- `scripts/content.js`: GoHighLevel page detection, floating logger, and local call persistence
+- `scripts/popup.js`: Popup event handling, storage orchestration, reporting, and editing
+- `scripts/appointment-queue.js`: Upcoming appointment filtering, labels, and ordering
+- `scripts/entry-model.js`: Entry status normalization and record shaping
+- `scripts/popup-storage.js`: Chrome storage access, migration, and draft persistence
+- `scripts/queue-view.js`: Appointment queue DOM rendering and follow-up actions
+- `scripts/summary-model.js`: Daily and hourly reporting calculations
+- `scripts/dom-utils.js`: Safe reusable DOM construction helpers
+- `scripts/conversation-parser.js`: Conversation and call-record extraction
+- `scripts/timezone.js`: Timezone conversion and date formatting
+- `tests/`: Parser, timezone, queue, entry-model, and content-script behavior tests
+
+Run the extension tests from this directory:
+
+```powershell
+node --test tests/*.test.js
+```

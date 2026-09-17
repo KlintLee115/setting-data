@@ -2,10 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { extractLeadName } = require('./conversation-parser');
+const { extractLeadName } = require('../scripts/conversation-parser');
 
 function sample(name) {
-  return fs.readFileSync(path.join(__dirname, '..', name), 'utf8');
+  return fs.readFileSync(path.join(__dirname, '..', '..', name), 'utf8');
 }
 
 test('extracts Jamie Brooks from the first transcript line', () => {
