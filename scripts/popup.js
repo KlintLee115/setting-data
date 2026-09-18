@@ -20,6 +20,7 @@ const importStatus = document.getElementById('import-status');
 const saveEntryButton = document.getElementById('save-entry');
 const clearFormButton = document.getElementById('clear-form');
 const cancelEditButton = document.getElementById('cancel-edit');
+const showCallLoggerButton = document.getElementById('show-call-logger');
 const {
   DEFAULT_TIME_ZONE_KEY,
   REPORTING_TIME_ZONE_KEY,
@@ -50,6 +51,30 @@ function setFormValue(name, value) {
   const field = document.querySelector(`[name="${name}"]`);
   if (field && value !== undefined) {
     field.value = value;
+  }
+}
+
+async function showCallLogger() {
+  showCallLoggerButton.disabled = true;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      throw new Error('No active tab.');
+    }
+    let result;
+    try {
+      result = await chrome.tabs.sendMessage(tab.id, { type: 'show-call-logger' });
+    } catch (error) {
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['scripts/content.js'] });
+      result = await chrome.tabs.sendMessage(tab.id, { type: 'show-call-logger' });
+    }
+    importStatus.textContent = result?.shown
+      ? 'Call logger restored.'
+      : 'Open a GoHighLevel conversation to show the call logger.';
+  } catch (error) {
+    importStatus.textContent = 'Open a GoHighLevel contact, then try again.';
+  } finally {
+    showCallLoggerButton.disabled = false;
   }
 }
 
@@ -137,6 +162,9 @@ function isVisible(timestamp) {
 }
 
 function getStatusClass(status) {
+  if (status === 'Had to go') {
+    return 'had-to-go';
+  }
   if (status === 'Disqualified') {
     return 'disqualified';
   }
@@ -177,10 +205,11 @@ function renderAppointmentQueue() {
     summaryHeading.textContent = getTimeZoneDisplayName(getReportingTimeZone());
   }
   if (!queue) return;
-  const appointments = getUpcomingAppointments(manualEntries);
-  renderQueueView(queue, appointments, {
+  const todoItems = getTodoItems(manualEntries);
+  renderQueueView(queue, todoItems, {
     formatDate,
     formatDateTime,
+    formatFollowUpDate: (value) => formatFollowUpDate(value, getReportingTimeZone()),
     formatFollowUpWindow,
     normalizeFollowUpDateValue,
     onSaveFollowUp: async (entryId, value) => {
@@ -309,6 +338,7 @@ function getEntryFormData(form) {
     callDuration: formData.get('callDuration'),
     lastTextMessage: formData.get('lastTextMessage').trim(),
     leaveReason: normalizeLeaveReason(formData.get('leaveReason')),
+    calledBack: formData.get('calledBack'),
     disqualified: formData.get('disqualified'),
     disqualificationReason: formData.get('disqualificationReason').trim(),
     pitched: formData.get('pitched'),
@@ -546,6 +576,7 @@ document.querySelectorAll('#manual-entry-form select').forEach((select) => {
   });
 });
 globalThis.setupPopupDataTransfer({ importStatus, saveFormDraft, setFormValue, updateConditionalFields });
+showCallLoggerButton.addEventListener('click', showCallLogger);
 clearFormButton.addEventListener('click', async () => {
   await popupStorage.clearDraft();
   resetEntryForm();

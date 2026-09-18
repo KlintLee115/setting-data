@@ -47,6 +47,16 @@ function getMountainDateTimeValue(date = new Date()) {
   return formatDateTimeInput(date);
 }
 
+function formatFollowUpDate(value, timeZone = DISPLAY_TIME_ZONE) {
+  const normalized = normalizeFollowUpDateValue(value);
+  if (!normalized) {
+    return '';
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short', day: 'numeric', year: 'numeric', timeZone
+  }).format(new Date(`${normalized}T12:00:00Z`));
+}
+
 function normalizeFollowUpDateValue(value) {
   if (!value) {
     return '';
@@ -99,6 +109,7 @@ if (typeof module !== 'undefined') {
   module.exports = {
     DISPLAY_TIME_ZONE,
     formatDateTimeInput,
+    formatFollowUpDate,
     formatFollowUpWindow,
     getDateTimeParts,
     getMountainDateTimeValue,

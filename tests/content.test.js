@@ -5,7 +5,7 @@ const vm = require('node:vm');
 
 const contentScript = fs.readFileSync(`${__dirname}/../scripts/content.js`, 'utf8');
 
-function loadContentScript(storageGetError, storageSetError) {
+function loadContentScript(storageGetError, storageSetError, composerMode = 'textarea', storageAvailable = true, leadName = 'Jane Doe') {
   const consoleErrors = [];
   const storageCalls = [];
   function element() {
@@ -18,6 +18,10 @@ function loadContentScript(storageGetError, storageSetError) {
       appendChild(item) { this.children.push(item); },
       replaceChildren(...items) { this.children = items; },
       click() { this.clickHandler?.(); },
+      dispatchEvent(event) {
+        this.lastEvent = event;
+        this.events = [...(this.events || []), event];
+      },
       querySelector(selector) {
         const className = selector.slice(1);
         for (const child of this.children) {
@@ -36,6 +40,7 @@ function loadContentScript(storageGetError, storageSetError) {
   const actions = element();
   const cancelButton = element();
   const nameElement = element();
+  const composer = element();
   const shadowRoot = {
     set innerHTML(value) {},
     querySelector(selector) {
@@ -50,20 +55,32 @@ function loadContentScript(storageGetError, storageSetError) {
   };
   const host = {
     id: '',
+    isConnected: true,
     style: { cssText: '', display: '' },
     shadowRoot,
     attachShadow() {
       return shadowRoot;
     }
   };
+  let hostCreated = false;
+  let messageListener;
   const document = {
     body: { innerText: '' },
     documentElement: { appendChild() {} },
     createElement(tagName) {
-      return tagName === 'div' ? host : element();
+      if (tagName === 'div' && !hostCreated) {
+        hostCreated = true;
+        return host;
+      }
+      return element();
     },
-    querySelector() {
-      return { textContent: 'Jane Doe' };
+    querySelector(selector) {
+      if (composerMode === 'textarea' && selector === '#conv-composer-textarea-input') return composer;
+      if (composerMode === 'input' && selector === 'input[placeholder="Type a message"]') return composer;
+      if (selector === '#conv-composer-textarea-input'
+        || selector === 'input[placeholder="Type a message"]'
+        || selector === 'textarea[placeholder="Type a message"]') return null;
+      return { textContent: leadName };
     },
     querySelectorAll() {
       return [];
@@ -71,7 +88,14 @@ function loadContentScript(storageGetError, storageSetError) {
   };
   const context = {
     chrome: {
-      storage: {
+      runtime: {
+        onMessage: {
+          addListener(listener) {
+            messageListener = listener;
+          }
+        }
+      },
+      storage: storageAvailable ? {
         local: {
           get() {
             return storageGetError
@@ -84,7 +108,7 @@ function loadContentScript(storageGetError, storageSetError) {
             return Promise.resolve();
           }
         }
-      }
+      } : {}
     },
     console: {
       error(...args) {
@@ -93,13 +117,15 @@ function loadContentScript(storageGetError, storageSetError) {
     },
     crypto: { randomUUID: () => 'test-id' },
     document,
+    Event,
     MutationObserver: class {
       observe() {}
     },
     setInterval() {},
     window: {
       location: { href: 'https://app.gohighlevel.com/conversations' },
-      setInterval() {}
+      setInterval() {},
+      setTimeout
     }
   };
 
@@ -109,10 +135,12 @@ function loadContentScript(storageGetError, storageSetError) {
     clickPickedUp: () => actions.children[0].click(),
     clickCancel: () => cancelButton.click(),
     actionCount: () => actions.children.length,
-    clickAction: () => actions.children[0].click(),
+    showCallLogger: () => new Promise((resolve) => messageListener({ type: 'show-call-logger' }, {}, resolve)),
+    clickAction: (index = 0) => actions.children[index].click(),
     field: (className) => fields.children
       .map((label) => label.children.find((child) => child.className === className))
       .find(Boolean),
+    composer,
     isVisible: () => host.style.display !== 'none',
     consoleErrors,
     storageCalls
@@ -143,13 +171,14 @@ test('ignores extension context invalidation from the call logger', async () => 
 });
 
 test('reports unrelated call logger storage errors', async () => {
-  const { clickNoAnswer, consoleErrors } = loadContentScript(new Error('Storage unavailable'));
-  clickNoAnswer();
+  const logger = loadContentScript(new Error('Storage unavailable'));
+  logger.clickNoAnswer();
+  logger.clickAction();
   await flushPromises();
 
-  assert.equal(consoleErrors.length, 1);
-  assert.equal(consoleErrors[0][0], 'Could not save call:');
-  assert.match(consoleErrors[0][1].message, /Storage unavailable/);
+  assert.equal(logger.consoleErrors.length, 1);
+  assert.equal(logger.consoleErrors[0][0], 'Could not save call:');
+  assert.match(logger.consoleErrors[0][1].message, /Storage unavailable/);
 });
 
 test('ignores synchronous extension context invalidation while publishing a lead', async () => {
@@ -163,13 +192,87 @@ test('ignores synchronous extension context invalidation while publishing a lead
 });
 
 test('handles the no-answer button through the same save path', async () => {
-  const { clickNoAnswer, consoleErrors } = loadContentScript(new Error('Storage unavailable'));
-  clickNoAnswer();
+  const logger = loadContentScript(new Error('Storage unavailable'));
+  logger.clickNoAnswer();
+  logger.clickAction();
   await flushPromises();
 
-  assert.equal(consoleErrors.length, 1);
-  assert.equal(consoleErrors[0][0], 'Could not save call:');
-  assert.match(consoleErrors[0][1].message, /Storage unavailable/);
+  assert.equal(logger.consoleErrors.length, 1);
+  assert.equal(logger.consoleErrors[0][0], 'Could not save call:');
+  assert.match(logger.consoleErrors[0][1].message, /Storage unavailable/);
+});
+
+test('fills the no-answer follow-up message for the lead', () => {
+  const logger = loadContentScript();
+
+  logger.clickNoAnswer();
+  logger.clickAction(1);
+
+  assert.equal(logger.composer.value, `Hey Jane, Klint here from Alicia's team (not AI, I promise 😂)
+
+Saw you recently registefred for our AI Business summit... Just to see if I can help u get more out of it
+
+Are you looking to implement AI with your current biz or are you just starting out with AI biz?`);
+  assert.deepEqual(logger.composer.events.map((event) => event.type), ['input', 'change']);
+  assert.equal(logger.composer.events.every((event) => event.bubbles), true);
+});
+
+test('saves the no-answer message as the last text message', async () => {
+  const logger = loadContentScript();
+
+  logger.clickNoAnswer();
+  logger.clickAction();
+  await flushPromises();
+
+  const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
+  assert.equal(saved.lastTextMessage, logger.composer.value);
+});
+
+test('saves the current GHL page URL with the call record', async () => {
+  const logger = loadContentScript();
+
+  logger.clickNoAnswer();
+  logger.clickAction(2);
+  await flushPromises();
+
+  const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
+  assert.equal(saved.sourceUrl, 'https://app.gohighlevel.com/conversations');
+});
+
+test('offers VIP and standard no-answer messages before saving', async () => {
+  const logger = loadContentScript();
+
+  logger.clickNoAnswer();
+  await flushPromises();
+  assert.equal(logger.storageCalls.some((call) => Array.isArray(call[0]?.entries)), false);
+  assert.equal(logger.actionCount(), 3);
+  logger.clickAction();
+  await flushPromises();
+
+  assert.match(logger.composer.value, /and even upgraded to VIP/);
+  assert.equal(logger.storageCalls.at(-1)[0].entries.at(-1).lastTextMessage, logger.composer.value);
+});
+
+test('supports the alternate GHL input composer selector', () => {
+  const logger = loadContentScript(undefined, undefined, 'input');
+
+  logger.clickNoAnswer();
+  logger.clickAction(1);
+
+  assert.match(logger.composer.value, /Hey Jane/);
+});
+
+test('can save a no-answer call without leaving a text message', async () => {
+  const logger = loadContentScript();
+
+  logger.clickNoAnswer();
+  logger.clickAction(2);
+  await flushPromises();
+
+  const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
+  assert.equal(saved.status, 'No Answer');
+  assert.equal(saved.lastTextMessage, undefined);
+  assert.equal(logger.composer.value, '');
 });
 
 test('picked-up opens the qualification step before saving', async () => {
@@ -205,7 +308,45 @@ test('picked-up follows the form flow and saves appointment details', async () =
   assert.equal(saved.wasSet, 'Yes');
   assert.equal(saved.closer, 'Alicia Lyttle');
   assert.equal(saved.followUpDate, '2026-09-18');
+  assert.equal(saved.appointmentDate, '2026-09-20T16:00:00.000Z');
   assert.equal(saved.appointmentTimeZone, 'America/Denver');
+});
+
+test('converts an appointment from the selected client timezone', async () => {
+  const logger = loadContentScript();
+
+  logger.clickPickedUp();
+  logger.field('disqualified').value = 'No';
+  logger.clickAction();
+  logger.field('pitched').value = 'Yes';
+  logger.clickAction();
+  logger.field('wasSet').value = 'Yes';
+  logger.clickAction();
+  logger.field('appointmentDate').value = '2026-09-20T10:00';
+  logger.field('appointmentTimeZone').value = 'America/Los_Angeles';
+  logger.clickAction();
+  await flushPromises();
+
+  const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
+  assert.equal(saved.appointmentDate, '2026-09-20T17:00:00.000Z');
+});
+
+test('saves whether a Had to go prospect was called back', async () => {
+  const logger = loadContentScript();
+
+  logger.clickPickedUp();
+  logger.field('disqualified').value = 'No';
+  logger.clickAction();
+  logger.field('pitched').value = 'No';
+  logger.clickAction();
+  logger.field('leaveReason').value = 'Had to go';
+  logger.field('calledBack').value = 'Yes';
+  logger.clickAction();
+  await flushPromises();
+
+  const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
+  assert.equal(saved.leaveReason, 'Had to go');
+  assert.equal(saved.calledBack, 'Yes');
 });
 
 test('X cancels an unfinished call entry', () => {
@@ -214,4 +355,35 @@ test('X cancels an unfinished call entry', () => {
   assert.equal(isVisible(), true);
   clickCancel();
   assert.equal(isVisible(), false);
+});
+
+test('restores the call logger when requested from the popup', async () => {
+  const logger = loadContentScript();
+
+  const result = await logger.showCallLogger();
+
+  assert.equal(result.shown, true);
+  assert.equal(logger.isVisible(), true);
+});
+
+test('shows the call logger for a single-word lead name', async () => {
+  const logger = loadContentScript(undefined, undefined, 'textarea', true, 'Toni');
+
+  const result = await logger.showCallLogger();
+
+  assert.equal(result.shown, true);
+  assert.equal(logger.isVisible(), true);
+});
+
+test('treats a missing storage API as an invalidated extension context', async () => {
+  const { clickPickedUp, consoleErrors } = loadContentScript(
+    undefined,
+    undefined,
+    'textarea',
+    false
+  );
+  clickPickedUp();
+  await flushPromises();
+
+  assert.deepEqual(consoleErrors, []);
 });

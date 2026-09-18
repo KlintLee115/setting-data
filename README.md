@@ -180,3 +180,5 @@ Run the extension tests from this directory:
 ```powershell
 node --test tests/*.test.js
 ```
+
+The TypeScript migration is staged in `src/`. The typed core currently covers entry models, outcomes, timezone utilities, appointment queues, and popup storage. Run `npm run typecheck` to validate it; the live extension continues to use the existing scripts until the browser bundle is wired.

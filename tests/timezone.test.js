@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   formatDateTimeInput,
+  formatFollowUpDate,
   formatFollowUpWindow,
   parseStoredDateTime,
   zonedDateTimeToDate
@@ -72,5 +73,10 @@ test('formats follow-up due windows for in-row queue updates', () => {
   assert.equal(formatFollowUpWindow('', now), 'No follow-up set');
   assert.equal(formatFollowUpWindow('2026-09-16T00:00:00.000Z', now), 'Due today');
   assert.equal(formatFollowUpWindow('not-a-date', now), 'No follow-up set');
+});
+
+test('formats follow-up dates as Mountain-time calendar dates', () => {
+  assert.equal(formatFollowUpDate('2026-10-02'), 'Oct 2, 2026');
+  assert.equal(formatFollowUpDate('2026-10-02T00:00:00.000Z'), 'Oct 2, 2026');
 });
 

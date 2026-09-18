@@ -21,16 +21,26 @@ function createEntryRow(entry, { formatDate, formatDateTime, getStatusClass, onE
   const actionsCell = document.createElement('td');
   const dateStack = createStack('cell-stack', createText('span', 'cell-main', formatDate(entry.dateTime)));
   const name = entry.entryType === 'Call' ? entry.name : entry.fullName;
-  const nameStack = createStack('cell-stack', createText('span', 'cell-main', name));
+  const nameElement = createText('span', 'cell-main', name);
+  if (entry.sourceUrl) {
+    const link = document.createElement('a');
+    link.href = entry.sourceUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = name || '';
+    nameElement.replaceChildren(link);
+  }
+  const nameStack = createStack('cell-stack', nameElement);
   nameStack.appendChild(createText('span', 'cell-sub', entry.entryType === 'Call' ? '' : [entry.email, entry.phone].filter(Boolean).join(' | ')));
 
   const details = entry.entryType === 'Call'
     ? `Call: ${formatDateTime(entry.callDateTime || entry.pickupDateTime || entry.timestamp)} | Picked up: ${entry.phonePickedUp || '-'} | Duration: ${entry.callDuration || '-'}`
-    : `Call: ${formatDateTime(entry.callDateTime)} | Last text: ${entry.lastTextMessage || '-'} | Appt: ${formatDateTime(entry.appointmentDate)} | Closer: ${entry.closer || '-'} | Duration: ${entry.callDuration || '-'}${entry.leaveReason ? ` | Leave reason: ${entry.leaveReason}` : ''} | Disqualified: ${entry.disqualified || '-'} | Pitched: ${entry.pitched || '-'} | Set: ${entry.wasSet || '-'}`;
+    : `Call: ${formatDateTime(entry.callDateTime)} | Last text: ${entry.lastTextMessage || '-'} | Appt: ${formatDateTime(entry.appointmentDate)} | Closer: ${entry.closer || '-'} | Duration: ${entry.callDuration || '-'}${entry.leaveReason ? ` | Leave reason: ${entry.leaveReason}` : ''}${entry.leaveReason === 'Had to go' ? ` | Called back: ${entry.calledBack || '-'}` : ''} | Disqualified: ${entry.disqualified || '-'} | Pitched: ${entry.pitched || '-'} | Set: ${entry.wasSet || '-'}`;
+  const displayStatus = entry.leaveReason === 'Had to go' ? 'Had to go' : entry.status;
   const statusClass = entry.entryType === 'Call' || entry.status
-    ? `status ${getStatusClass(entry.status)}`
+    ? `status ${getStatusClass(displayStatus)}`
     : 'cell-main';
-  const detailsStack = createStack('cell-stack', createText('span', statusClass, entry.status));
+  const detailsStack = createStack('cell-stack', createText('span', statusClass, displayStatus));
   detailsStack.appendChild(createText('span', 'cell-sub', details));
 
   const actions = createText('div', 'row-actions', '');

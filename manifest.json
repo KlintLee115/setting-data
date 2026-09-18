@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "description": "Log GoHighLevel call outcomes locally and track daily pickup performance.",
   "permissions": [
-    "storage"
+    "storage",
+    "activeTab",
+    "scripting"
   ],
   "action": {
     "default_title": "GHL Call Log",

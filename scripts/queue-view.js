@@ -11,13 +11,13 @@ function createQueueEmptyState() {
   const item = document.createElement('li');
   item.className = 'queue-item';
   item.append(
-    createTextElement('div', 'queue-item-title', 'No upcoming appointments'),
-    createTextElement('div', 'queue-item-meta', 'Past bookings are hidden from follow-up. New appointments will appear here.')
+    createTextElement('div', 'queue-item-title', 'No to-dos'),
+    createTextElement('div', 'queue-item-meta', 'Upcoming appointments and outstanding callbacks will appear here.')
   );
   return item;
 }
 
-function createQueueItem(entry, { formatDate, formatDateTime, formatFollowUpWindow, normalizeFollowUpDateValue, onSaveFollowUp }) {
+function createQueueItem(entry, { formatDate, formatDateTime, formatFollowUpDate, formatFollowUpWindow, normalizeFollowUpDateValue, onSaveFollowUp }) {
   const item = document.createElement('li');
   item.className = 'queue-item';
   const title = createTextElement('div', 'queue-item-title', entry.fullName || 'Unknown lead');
@@ -30,16 +30,27 @@ function createQueueItem(entry, { formatDate, formatDateTime, formatFollowUpWind
   const head = createTextElement('div', 'queue-item-head', '');
   head.append(title, rightSide);
 
-  const followUpValue = entry.followUpDate ? formatDate(normalizeFollowUpDateValue(entry.followUpDate)) : 'Not set';
-  const detailLine = createMetaRow([
-    { text: 'Set:', className: 'queue-item-meta-label' },
-    { text: entry.createdAt ? formatDate(entry.createdAt) : 'Unknown', className: 'queue-item-meta-value' },
-    { text: '•', className: 'queue-item-meta-divider' },
-    { text: 'Appt:', className: 'queue-item-meta-label' },
-    { text: formatDateTime(entry.appointmentDate), className: 'queue-item-meta-value' }
-  ]);
+  const followUpValue = entry.followUpDate ? formatFollowUpDate(entry.followUpDate) : 'Not set';
+  const detailLine = createMetaRow(entry.todoType === 'callback'
+    ? [
+      { text: 'Called:', className: 'queue-item-meta-label' },
+      { text: formatDateTime(entry.callDateTime), className: 'queue-item-meta-value' },
+      { text: '•', className: 'queue-item-meta-divider' },
+      { text: 'Called back:', className: 'queue-item-meta-label' },
+      { text: entry.calledBack || 'No', className: 'queue-item-meta-value' }
+    ]
+    : [
+      { text: 'Set:', className: 'queue-item-meta-label' },
+      { text: entry.createdAt ? formatDate(entry.createdAt) : 'Unknown', className: 'queue-item-meta-value' },
+      { text: '•', className: 'queue-item-meta-divider' },
+      { text: 'Appt:', className: 'queue-item-meta-label' },
+      { text: formatDateTime(entry.appointmentDate), className: 'queue-item-meta-value' }
+    ]);
   const followUpLine = createLabelValueRow('Follow-up:', followUpValue);
   const closerLine = createLabelValueRow('Closer:', entry.closer || 'No closer listed');
+  const notesLine = entry.todoType === 'callback' && entry.notes
+    ? createLabelValueRow('Notes:', entry.notes)
+    : null;
   const input = document.createElement('input');
   input.type = 'date';
   input.value = normalizeFollowUpDateValue(entry.followUpDate) || '';
@@ -49,7 +60,11 @@ function createQueueItem(entry, { formatDate, formatDateTime, formatFollowUpWind
   const controls = createTextElement('div', 'queue-item-controls', '');
   controls.append(input, save);
   const meta = createTextElement('div', 'queue-item-meta', '');
-  meta.append(detailLine, followUpLine, closerLine, controls);
+  meta.append(detailLine, followUpLine, closerLine);
+  if (notesLine) {
+    meta.append(notesLine);
+  }
+  meta.append(controls);
   item.append(head, meta);
   return item;
 }

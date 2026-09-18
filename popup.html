@@ -13,7 +13,7 @@
     h1 { margin: 0; font-size: 18px; line-height: 1.2; }
     .subtitle { margin: 5px 0 0; color: #718096; font-size: 12px; }
     .count { min-width: 34px; padding: 6px 8px; border-radius: 999px; background: #e5edf8; color: #245a95; font-size: 12px; font-weight: 700; text-align: center; }
-    .toolbar { display: flex; gap: 8px; margin-bottom: 14px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
     select, button { min-height: 34px; border: 1px solid #d8e0eb; border-radius: 7px; background: #ffffff; color: #29364a; font: inherit; font-size: 12px; }
     select { flex: 1; padding: 0 9px; }
     button { padding: 0 10px; cursor: pointer; font-weight: 700; }
@@ -95,6 +95,7 @@
     .status.booked { color: #245a95; background: #e9f1ff; }
     .status.no-answer { color: #9b3034; background: #fae5e6; }
     .status.disqualified { color: #9b3034; background: #fae5e6; }
+    .status.had-to-go { color: #9a5b00; background: #fff1d6; }
     .empty { padding: 28px 14px; color: #718096; font-size: 12px; text-align: center; }
     .cell-stack { display: grid; gap: 3px; min-width: 0; }
     .cell-main { overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
@@ -124,6 +125,7 @@
       <input id="restore-file" type="file" accept="application/json" hidden>
       <button id="import-call-record" type="button">Import Call Record</button>
       <input id="call-record-file" type="file" accept="application/json" hidden>
+      <button id="show-call-logger" type="button">Show Call Logger</button>
       <span class="import-status" id="import-status" aria-live="polite"></span>
     </div>
     <div class="settings-panel">
@@ -181,6 +183,7 @@
       <div class="stage conditional" id="conversation-outcome">
         <p class="stage-heading">Conversation outcome</p>
         <label class="full-width">Outcome<select id="leave-reason" name="leaveReason"><option value="">Select</option><option value="Had to go">Had to go</option><option value="Money">Money</option><option value="Partner">Partner</option><option value="Timing">Timing</option></select></label>
+        <label class="conditional full-width" data-show-when="leave-reason=Had to go">Called back?<select name="calledBack"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
       </div>
       <label class="full-width">Notes<textarea name="notes" placeholder="Relevant context, objections, or follow-up"></textarea></label>
       <button id="save-entry" type="submit">Save entry</button>
@@ -194,7 +197,7 @@
         <tbody id="log-body"></tbody>
       </table>
     </div>
-    <h2 class="section-title">Appointment follow-up queue</h2>
+    <h2 class="section-title">To-do</h2>
     <div class="queue-wrap">
       <ul class="queue-list" id="appointment-queue"></ul>
     </div>

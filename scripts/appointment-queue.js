@@ -25,9 +25,31 @@ function getUpcomingAppointments(entries, now = new Date(), parseFollowUp = pars
     .sort((first, second) => first.appointmentInstant - second.appointmentInstant);
 }
 
+function getTodoItems(entries, now = new Date(), parseFollowUp = parseFollowUpDate) {
+  const appointments = getUpcomingAppointments(entries, now, parseFollowUp)
+    .map((entry) => ({ ...entry, todoType: 'appointment' }));
+  const callbacks = entries
+    .filter((entry) => entry.leaveReason === 'Had to go' && entry.calledBack !== 'Yes')
+    .map((entry) => {
+      const taskInstant = new Date(entry.callDateTime || entry.createdAt || entry.timestamp);
+      return {
+        ...entry,
+        appointmentInstant: taskInstant,
+        followUpDate: entry.followUpDate ? parseFollowUp(entry.followUpDate) : null,
+        label: 'Call back',
+        todoType: 'callback'
+      };
+    })
+    .filter((entry) => Number.isFinite(entry.appointmentInstant.getTime()))
+    .sort((first, second) => first.appointmentInstant - second.appointmentInstant);
+  return [...appointments, ...callbacks]
+    .sort((first, second) => first.appointmentInstant - second.appointmentInstant);
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     getAppointmentLabel,
-    getUpcomingAppointments
+    getUpcomingAppointments,
+    getTodoItems
   };
 }
