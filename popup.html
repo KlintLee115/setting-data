@@ -41,9 +41,10 @@
     .queue-item-follow-up { color: #245a95; font-weight: 700; }
     .queue-item-follow-up.is-due { color: #9a5b00; }
     .queue-item-follow-up.is-overdue { color: #b42318; }
-    .queue-item-controls { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+    .queue-item-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
     .queue-item-controls input[type="date"] { width: 120px; min-height: 26px; padding: 0 6px; border: 1px solid #d8e0eb; border-radius: 5px; color: #29364a; font: inherit; font-size: 10px; }
     .queue-item-controls button { min-height: 26px; padding: 0 8px; border: 1px solid #b8cbe2; border-radius: 5px; background: #ffffff; color: #245a95; font: inherit; font-size: 10px; font-weight: 700; }
+    .queue-item-controls button:disabled { color: #a0aec0; border-color: #e1e7ef; cursor: not-allowed; }
     .entry-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; border: 1px solid #e1e7ef; border-radius: 9px; background: #ffffff; }
     .entry-form label { display: grid; gap: 4px; color: #718096; font-size: 10px; font-weight: 700; }
     .entry-form input { width: 100%; min-height: 32px; padding: 0 8px; border: 1px solid #d8e0eb; border-radius: 6px; color: #29364a; font: inherit; font-size: 11px; }

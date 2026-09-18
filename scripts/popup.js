@@ -220,6 +220,25 @@ function renderAppointmentQueue() {
       await persistEntries();
       renderAppointmentQueue();
       render();
+    },
+    onOpen: async (entry) => {
+      if (entry.sourceUrl) {
+        await chrome.tabs.create({ url: entry.sourceUrl });
+      }
+    },
+    onComplete: async (entry, outcome) => {
+      const index = manualEntries.findIndex((candidate) => candidate.id === entry.id);
+      if (index < 0) return;
+      if (entry.todoType === 'callback') {
+        manualEntries[index].calledBack = 'Yes';
+      } else {
+        manualEntries[index].appointmentOutcome = outcome;
+      }
+      manualEntries[index] = normalizeEntryStatus(manualEntries[index]);
+      await persistEntries();
+      renderAppointmentQueue();
+      render();
+      renderPickupSummary();
     }
   });
 }

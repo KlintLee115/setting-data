@@ -17,7 +17,7 @@ function createQueueEmptyState() {
   return item;
 }
 
-function createQueueItem(entry, { formatDate, formatDateTime, formatFollowUpDate, formatFollowUpWindow, normalizeFollowUpDateValue, onSaveFollowUp }) {
+function createQueueItem(entry, { formatDate, formatDateTime, formatFollowUpDate, formatFollowUpWindow, normalizeFollowUpDateValue, onSaveFollowUp, onOpen, onComplete }) {
   const item = document.createElement('li');
   item.className = 'queue-item';
   const title = createTextElement('div', 'queue-item-title', entry.fullName || 'Unknown lead');
@@ -57,8 +57,21 @@ function createQueueItem(entry, { formatDate, formatDateTime, formatFollowUpDate
   const save = createTextElement('button', '', 'Save');
   save.type = 'button';
   save.addEventListener('click', () => onSaveFollowUp(entry.id, input.value));
+  const open = createTextElement('button', '', 'Open GHL');
+  open.type = 'button';
+  open.disabled = !entry.sourceUrl;
+  open.addEventListener('click', () => onOpen(entry));
+  const complete = createTextElement('button', '', entry.todoType === 'callback' ? 'Mark called back' : 'Completed');
+  complete.type = 'button';
+  complete.addEventListener('click', () => onComplete(entry, entry.todoType === 'callback' ? 'Called back' : 'Completed'));
   const controls = createTextElement('div', 'queue-item-controls', '');
-  controls.append(input, save);
+  controls.append(input, save, open, complete);
+  if (entry.todoType === 'appointment') {
+    const noShow = createTextElement('button', '', 'No-show');
+    noShow.type = 'button';
+    noShow.addEventListener('click', () => onComplete(entry, 'No-show'));
+    controls.append(noShow);
+  }
   const meta = createTextElement('div', 'queue-item-meta', '');
   meta.append(detailLine, followUpLine, closerLine);
   if (notesLine) {

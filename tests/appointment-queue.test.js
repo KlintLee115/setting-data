@@ -141,3 +141,85 @@ test('callback queue item includes notes in the visible entry details', () => {
     global.createLabelValueRow = oldCreateLabelValueRow;
   }
 });
+
+test('entry row includes notes in the visible details', () => {
+  const oldDocument = global.document;
+
+  function makeNode(tagName) {
+    const node = {
+      tagName: String(tagName).toUpperCase(),
+      className: '',
+      textContent: '',
+      children: [],
+      append: function (...values) {
+        values.forEach((value) => {
+          if (value !== undefined && value !== null) {
+            this.children.push(value);
+          }
+        });
+      },
+      appendChild: function (child) {
+        this.children.push(child);
+      },
+      addEventListener: function () {},
+      replaceChildren: function (...values) {
+        this.children = values.filter((value) => value !== undefined && value !== null);
+      }
+    };
+    return node;
+  }
+
+  global.document = {
+    createElement: (tagName) => makeNode(tagName)
+  };
+
+  try {
+    const { createEntryRow } = require('../scripts/entry-view');
+    const row = createEntryRow({
+      id: 'entry-1',
+      entryType: 'Manual',
+      fullName: 'Ayan Hudson',
+      email: 'aya@example.com',
+      phone: '555-1234',
+      callDateTime: '2026-09-16T20:08:00.000Z',
+      leaveReason: 'Had to go',
+      calledBack: 'No',
+      notes: 'regregregreg',
+      status: 'Had to go',
+      dateTime: '2026-09-16T20:08:00.000Z'
+    }, {
+      formatDate: () => 'Sep 16, 2026',
+      formatDateTime: () => 'Sep 16, 2026, 8:08 PM',
+      getStatusClass: () => 'status-neutral',
+      onEdit: () => {},
+      onDelete: () => {}
+    });
+
+    let text = '';
+    const walk = (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (typeof node.textContent === 'string' && node.textContent) {
+        text += `${node.textContent} `;
+      }
+      if (Array.isArray(node.children)) {
+        for (const child of node.children) {
+          walk(child);
+        }
+      }
+    };
+    walk(row);
+
+    assert.match(text, /Notes: regregregreg/);
+  } finally {
+    global.document = oldDocument;
+  }
+});
+
+test('to-do keeps overdue appointments until they are completed', () => {
+  const todos = getTodoItems([
+    { id: 'overdue', appointmentDate: '2026-09-16T10:00:00.000Z' },
+    { id: 'complete', appointmentDate: '2026-09-16T11:00:00.000Z', appointmentOutcome: 'Completed' }
+  ], new Date('2026-09-17T12:00:00Z'), parseFollowUpDate);
+
+  assert.deepEqual(todos.map((entry) => entry.id), ['overdue']);
+});

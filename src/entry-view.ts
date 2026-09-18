@@ -51,7 +51,7 @@ export function createEntryRow(entry: DisplayEntry, options: EntryViewOptions): 
 
   const details = entry.entryType === 'Call'
     ? `Call: ${options.formatDateTime(entry.callDateTime || entry.timestamp)} | Picked up: ${entry.phonePickedUp || '-'} | Duration: ${entry.callDuration || '-'}`
-    : `Call: ${options.formatDateTime(entry.callDateTime)} | Last text: ${entry.lastTextMessage || '-'} | Appt: ${options.formatDateTime(entry.appointmentDate)} | Closer: ${entry.closer || '-'} | Duration: ${entry.callDuration || '-'}${entry.leaveReason ? ` | Leave reason: ${entry.leaveReason}` : ''}${entry.leaveReason === 'Had to go' ? ` | Called back: ${entry.calledBack || '-'}` : ''} | Disqualified: ${entry.disqualified || '-'} | Pitched: ${entry.pitched || '-'} | Set: ${entry.wasSet || '-'}`;
+    : `Call: ${options.formatDateTime(entry.callDateTime)} | Last text: ${entry.lastTextMessage || '-'} | Appt: ${options.formatDateTime(entry.appointmentDate)} | Closer: ${entry.closer || '-'} | Duration: ${entry.callDuration || '-'}${entry.leaveReason ? ` | Leave reason: ${entry.leaveReason}` : ''}${entry.leaveReason === 'Had to go' ? ` | Called back: ${entry.calledBack || '-'}` : ''}${entry.notes ? ` | Notes: ${entry.notes}` : ''} | Disqualified: ${entry.disqualified || '-'} | Pitched: ${entry.pitched || '-'} | Set: ${entry.wasSet || '-'}`;
   const displayStatus = entry.leaveReason === 'Had to go' ? 'Had to go' : entry.status;
   const statusClass = entry.entryType === 'Call' || entry.status
     ? `status ${options.getStatusClass(displayStatus)}`

@@ -26,16 +26,29 @@ function getUpcomingAppointments(entries, now = new Date(), parseFollowUp = pars
 }
 
 function getTodoItems(entries, now = new Date(), parseFollowUp = parseFollowUpDate) {
-  const appointments = getUpcomingAppointments(entries, now, parseFollowUp)
-    .map((entry) => ({ ...entry, todoType: 'appointment' }));
+  const appointments = entries
+    .filter((entry) => entry.appointmentDate && !entry.appointmentOutcome)
+    .map((entry) => {
+      const appointmentInstant = new Date(entry.appointmentDate);
+      const followUpDate = entry.followUpDate ? parseFollowUp(entry.followUpDate) : null;
+      return {
+        ...entry,
+        appointmentInstant,
+        followUpDate,
+        label: 'Appointment',
+        todoType: 'appointment'
+      };
+    })
+    .filter((entry) => Number.isFinite(entry.appointmentInstant.getTime()));
   const callbacks = entries
     .filter((entry) => entry.leaveReason === 'Had to go' && entry.calledBack !== 'Yes')
     .map((entry) => {
-      const taskInstant = new Date(entry.callDateTime || entry.createdAt || entry.timestamp);
+      const callInstant = new Date(entry.callDateTime || entry.createdAt || entry.timestamp);
+      const followUpDate = entry.followUpDate ? parseFollowUp(entry.followUpDate) : null;
       return {
         ...entry,
-        appointmentInstant: taskInstant,
-        followUpDate: entry.followUpDate ? parseFollowUp(entry.followUpDate) : null,
+        appointmentInstant: followUpDate?.getTime() ? followUpDate : callInstant,
+        followUpDate,
         label: 'Call back',
         todoType: 'callback'
       };
