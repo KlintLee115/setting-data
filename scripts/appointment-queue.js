@@ -41,7 +41,7 @@ function getTodoItems(entries, now = new Date(), parseFollowUp = parseFollowUpDa
     })
     .filter((entry) => Number.isFinite(entry.appointmentInstant.getTime()));
   const callbacks = entries
-    .filter((entry) => entry.leaveReason === 'Had to go' && entry.calledBack !== 'Yes')
+    .filter((entry) => (entry.leaveReason || entry.status) === 'Had to go' && entry.calledBack !== 'Yes')
     .map((entry) => {
       const callInstant = new Date(entry.callDateTime || entry.createdAt || entry.timestamp);
       const followUpDate = entry.followUpDate ? parseFollowUp(entry.followUpDate) : null;

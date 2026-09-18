@@ -1,13 +1,13 @@
 import type { UpcomingAppointment } from './appointment-queue';
 import { createLabelValueRow, createMetaRow, createTextElement } from './dom-utils';
+import { buildFollowUpConfirmationMessage } from './followup-message';
 
 export interface QueueViewOptions {
   formatDate: (value: string | Date | undefined) => string;
   formatDateTime: (value: string | undefined) => string;
-  formatFollowUpDate: (value: string | undefined) => string;
-  formatFollowUpWindow: (value: string | undefined) => string;
-  normalizeFollowUpDateValue: (value: string | undefined) => string;
-  onSaveFollowUp: (entryId: string | undefined, value: string) => void;
+  onSaveNotes: (entryId: string | undefined, value: string) => void | Promise<void>;
+  onCopyConfirmation: (message: string, entry: UpcomingAppointment) => void | Promise<void>;
+  onDelete: (entry: UpcomingAppointment) => void | Promise<void>;
 }
 
 export function renderQueueView(queue: HTMLUListElement, entries: UpcomingAppointment[], options: QueueViewOptions): void {
@@ -34,15 +34,11 @@ export function createQueueItem(entry: UpcomingAppointment, options: QueueViewOp
   item.className = 'queue-item';
   const title = createTextElement('div', 'queue-item-title', String(entry.fullName || 'Unknown lead'));
   const badge = createTextElement('span', 'queue-badge', String(entry.label));
-  const whenText = entry.followUpDate ? options.formatFollowUpWindow(String(entry.followUpDate)) : 'No follow-up';
-  const whenClass = whenText === 'No follow-up' ? 'is-neutral' : whenText === 'Due today' || whenText === 'Due now' ? 'is-due' : '';
-  const when = createTextElement('span', `queue-item-when ${whenClass}`, whenText);
   const rightSide = createTextElement('div', 'queue-item-head-right', '');
-  rightSide.append(badge, when);
+  rightSide.append(badge);
   const head = createTextElement('div', 'queue-item-head', '');
   head.append(title, rightSide);
 
-  const followUpValue = entry.followUpDate ? options.formatFollowUpDate(String(entry.followUpDate)) : 'Not set';
   const detailLine = createMetaRow(entry.todoType === 'callback'
     ? [
       { text: 'Called:', className: 'queue-item-meta-label' },
@@ -58,25 +54,79 @@ export function createQueueItem(entry: UpcomingAppointment, options: QueueViewOp
       { text: 'Appt:', className: 'queue-item-meta-label' },
       { text: options.formatDateTime(String(entry.appointmentDate || '')), className: 'queue-item-meta-value' }
     ]);
-  const followUpLine = createLabelValueRow('Follow-up:', followUpValue);
   const closerLine = createLabelValueRow('Closer:', String(entry.closer || 'No closer listed'));
-  const notesLine = entry.todoType === 'callback' && entry.notes
-    ? createLabelValueRow('Notes:', String(entry.notes))
-    : null;
-  const input = document.createElement('input');
-  input.type = 'date';
-  input.value = entry.followUpDate ? options.normalizeFollowUpDateValue(String(entry.followUpDate)) : '';
-  const save = createTextElement('button', '', 'Save');
-  save.type = 'button';
-  save.addEventListener('click', () => options.onSaveFollowUp(entry.id ? String(entry.id) : undefined, input.value));
+
+  const notesLabel = createTextElement('div', 'queue-item-meta-label', 'Notes:');
+  const notesInput = document.createElement('textarea');
+  notesInput.className = 'queue-item-notes-input';
+  notesInput.rows = 2;
+  notesInput.placeholder = 'Add a note…';
+  notesInput.value = String(entry.notes || '');
+  const notesSave = createTextElement('button', '', 'Save note');
+  notesSave.type = 'button';
+  const notesStatus = createTextElement('span', 'queue-item-notes-status', '');
+  let notesStatusTimer: ReturnType<typeof setTimeout> | null = null;
+  notesSave.addEventListener('click', async () => {
+    notesStatus.textContent = 'Saving…';
+    notesStatus.className = 'queue-item-notes-status is-saving';
+    try {
+      await options.onSaveNotes(entry.id ? String(entry.id) : undefined, notesInput.value);
+      notesStatus.textContent = 'Saved';
+      notesStatus.className = 'queue-item-notes-status is-saved';
+    } catch (error) {
+      notesStatus.textContent = 'Failed to save';
+      notesStatus.className = 'queue-item-notes-status is-error';
+    }
+    if (notesStatusTimer) {
+      clearTimeout(notesStatusTimer);
+    }
+    notesStatusTimer = setTimeout(() => {
+      notesStatus.textContent = '';
+      notesStatus.className = 'queue-item-notes-status';
+    }, 2000);
+  });
+  const notesControls = createTextElement('div', 'queue-item-notes-controls', '');
+  notesControls.append(notesStatus, notesSave);
+  const notesLine = createTextElement('div', 'queue-item-notes', '');
+  notesLine.append(notesLabel, notesInput, notesControls);
+
+  const deleteButton = createTextElement('button', '', 'Delete');
+  deleteButton.type = 'button';
+  deleteButton.addEventListener('click', () => options.onDelete(entry));
   const controls = createTextElement('div', 'queue-item-controls', '');
-  controls.append(input, save);
-  const meta = createTextElement('div', 'queue-item-meta', '');
-  meta.append(detailLine, followUpLine, closerLine);
-  if (notesLine) {
-    meta.append(notesLine);
+  controls.append(deleteButton);
+  if (entry.todoType === 'appointment') {
+    const confirmStatus = createTextElement('span', 'queue-item-notes-status', '');
+    let confirmStatusTimer: ReturnType<typeof setTimeout> | null = null;
+    const copyConfirmation = createTextElement('button', '', 'Copy confirm text');
+    copyConfirmation.type = 'button';
+    copyConfirmation.addEventListener('click', async () => {
+      const message = buildFollowUpConfirmationMessage({
+        fullName: entry.fullName as string | undefined,
+        closer: entry.closer as string | undefined,
+        appointmentDate: entry.appointmentDate as string | undefined,
+        appointmentTimeZone: entry.appointmentTimeZone as string | undefined
+      });
+      try {
+        await options.onCopyConfirmation(message, entry);
+        confirmStatus.textContent = 'Copied';
+        confirmStatus.className = 'queue-item-notes-status is-saved';
+      } catch (error) {
+        confirmStatus.textContent = 'Failed to copy';
+        confirmStatus.className = 'queue-item-notes-status is-error';
+      }
+      if (confirmStatusTimer) {
+        clearTimeout(confirmStatusTimer);
+      }
+      confirmStatusTimer = setTimeout(() => {
+        confirmStatus.textContent = '';
+        confirmStatus.className = 'queue-item-notes-status';
+      }, 2000);
+    });
+    controls.append(copyConfirmation, confirmStatus);
   }
-  meta.append(controls);
+  const meta = createTextElement('div', 'queue-item-meta', '');
+  meta.append(detailLine, closerLine, notesLine, controls);
   item.append(head, meta);
   return item;
 }

@@ -46,7 +46,38 @@ test('to-do includes uncalled-back Had to go prospects with appointments', () =>
   assert.equal(todos[0].label, 'Call back');
 });
 
-test('callback queue item includes notes in the visible entry details', () => {
+test('to-do recognizes legacy Had to go records stored in status', () => {
+  const todos = getTodoItems([
+    { id: 'legacy-callback', status: 'Had to go', calledBack: 'No', callDateTime: '2026-09-17T15:00:00.000Z' }
+  ], new Date('2026-09-18T08:00:00Z'), parseFollowUpDate);
+
+  assert.deepEqual(todos.map((entry) => entry.id), ['legacy-callback']);
+  assert.equal(todos[0].todoType, 'callback');
+});
+
+test('to-do includes imported call records with an outstanding callback', () => {
+  const todos = getTodoItems([
+    {
+      id: '1789692767643-e03a8154-2fc1-4a69-89b2-8b1f4f36580e',
+      recordType: 'call',
+      sourceType: 'call',
+      fullName: 'Beth Mcdowell',
+      callDateTime: '2026-09-17T18:52',
+      leaveReason: 'Had to go',
+      calledBack: 'No',
+      appointmentDate: '',
+      followUpDate: ''
+    }
+  ], new Date('2026-09-18T08:00:00Z'), parseFollowUpDate);
+
+  assert.equal(todos.length, 1);
+  assert.equal(todos[0].id, '1789692767643-e03a8154-2fc1-4a69-89b2-8b1f4f36580e');
+  assert.equal(todos[0].recordType, 'call');
+  assert.equal(todos[0].sourceType, 'call');
+  assert.equal(todos[0].todoType, 'callback');
+});
+
+test('queue item renders an editable notes field with the current note for any to-do type', () => {
   const oldDocument = global.document;
   const oldCreateTextElement = global.createTextElement;
   const oldCreateMetaRow = global.createMetaRow;
@@ -57,6 +88,7 @@ test('callback queue item includes notes in the visible entry details', () => {
       tagName: String(tagName).toUpperCase(),
       className: '',
       textContent: '',
+      value: '',
       children: [],
       append: function (...values) {
         values.forEach((value) => {
@@ -68,7 +100,10 @@ test('callback queue item includes notes in the visible entry details', () => {
       appendChild: function (child) {
         this.children.push(child);
       },
-      addEventListener: function () {},
+      addEventListener: function (eventName, listener) {
+        this.listeners = this.listeners || {};
+        this.listeners[eventName] = listener;
+      },
       replaceChildren: function (...values) {
         this.children = values.filter((value) => value !== undefined && value !== null);
       }
@@ -98,31 +133,42 @@ test('callback queue item includes notes in the visible entry details', () => {
 
   try {
     const { createQueueItem } = require('../scripts/queue-view');
+    const savedNotes = [];
+    const deletedEntries = [];
     const item = createQueueItem({
-      id: 'callback-1',
+      id: 'appointment-1',
       fullName: 'Aye Felix',
-      label: 'Call back',
-      todoType: 'callback',
-      calledBack: 'No',
-      callDateTime: '2026-09-17T10:36:00.000Z',
+      label: 'Appointment',
+      todoType: 'appointment',
       closer: 'No closer listed',
-      notes: 'Customer called back after 3pm',
+      notes: 'Wants a follow-up demo',
       followUpDate: '2026-09-19',
-      appointmentInstant: new Date('2026-09-17T10:36:00.000Z')
+      appointmentDate: '2026-09-20T18:00:00.000Z',
+      appointmentInstant: new Date('2026-09-20T18:00:00.000Z')
     }, {
       formatDate: () => 'Sep 17, 2026',
-      formatDateTime: () => 'Sep 17, 2026, 10:36 AM MDT',
+      formatDateTime: () => 'Sep 20, 2026, 6:00 PM MDT',
       formatFollowUpDate: () => 'Sep 19, 2026',
       formatFollowUpWindow: () => 'Due today',
       normalizeFollowUpDateValue: (value) => String(value || ''),
-      onSaveFollowUp: () => {}
+      onSaveFollowUp: () => {},
+      onSaveNotes: (entryId, value) => savedNotes.push([entryId, value]),
+      onDelete: (entry) => deletedEntries.push(entry.id)
     });
 
-    let text = '';
+    let notesTextarea;
+    const findClick = [];
+    const deleteButtons = [];
     const walk = (node) => {
       if (!node || typeof node !== 'object') return;
-      if (typeof node.textContent === 'string' && node.textContent) {
-        text += `${node.textContent} `;
+      if (node.tagName === 'TEXTAREA') {
+        notesTextarea = node;
+      }
+      if (node.tagName === 'BUTTON' && node.textContent === 'Save note') {
+        findClick.push(node);
+      }
+      if (node.tagName === 'BUTTON' && node.textContent === 'Delete') {
+        deleteButtons.push(node);
       }
       if (Array.isArray(node.children)) {
         for (const child of node.children) {
@@ -132,13 +178,127 @@ test('callback queue item includes notes in the visible entry details', () => {
     };
     walk(item);
 
-    assert.match(text, /Notes:/);
-    assert.match(text, /Customer called back after 3pm/);
+    assert.ok(notesTextarea, 'expected a notes textarea to be rendered');
+    assert.equal(notesTextarea.value, 'Wants a follow-up demo');
+    assert.equal(findClick.length, 1);
+    assert.equal(deleteButtons.length, 1);
+
+    notesTextarea.value = 'Updated note';
+    findClick[0].listeners.click();
+    assert.deepEqual(savedNotes, [['appointment-1', 'Updated note']]);
+    deleteButtons[0].listeners.click();
+    assert.deepEqual(deletedEntries, ['appointment-1']);
   } finally {
     global.document = oldDocument;
     global.createTextElement = oldCreateTextElement;
     global.createMetaRow = oldCreateMetaRow;
     global.createLabelValueRow = oldCreateLabelValueRow;
+  }
+});
+
+test('appointment queue item copies a follow-up confirmation message', async () => {
+  const oldDocument = global.document;
+  const oldCreateTextElement = global.createTextElement;
+  const oldCreateMetaRow = global.createMetaRow;
+  const oldCreateLabelValueRow = global.createLabelValueRow;
+  const oldBuildFollowUpConfirmationMessage = global.buildFollowUpConfirmationMessage;
+
+  function makeNode(tagName) {
+    const node = {
+      tagName: String(tagName).toUpperCase(),
+      className: '',
+      textContent: '',
+      value: '',
+      children: [],
+      append: function (...values) {
+        values.forEach((value) => {
+          if (value !== undefined && value !== null) {
+            this.children.push(value);
+          }
+        });
+      },
+      appendChild: function (child) {
+        this.children.push(child);
+      },
+      addEventListener: function (eventName, listener) {
+        this.listeners = this.listeners || {};
+        this.listeners[eventName] = listener;
+      },
+      replaceChildren: function (...values) {
+        this.children = values.filter((value) => value !== undefined && value !== null);
+      }
+    };
+    return node;
+  }
+
+  global.createTextElement = (tagName, className, text) => {
+    const node = makeNode(tagName);
+    node.className = className || '';
+    node.textContent = String(text ?? '');
+    return node;
+  };
+  global.createMetaRow = (parts) => {
+    const row = makeNode('div');
+    row.className = 'queue-item-meta-row';
+    row.append(...parts.map(({ text, className }) => global.createTextElement('span', className, text)));
+    return row;
+  };
+  global.createLabelValueRow = (label, value) => global.createMetaRow([
+    { text: label, className: 'queue-item-meta-label' },
+    { text: value, className: 'queue-item-meta-value' }
+  ]);
+  global.document = {
+    createElement: (tagName) => makeNode(tagName)
+  };
+  global.buildFollowUpConfirmationMessage = (entry) => `confirmation for ${entry.fullName}`;
+
+  try {
+    const { createQueueItem } = require('../scripts/queue-view');
+    const copiedMessages = [];
+    const item = createQueueItem({
+      id: 'appointment-1',
+      fullName: 'Aye Felix',
+      label: 'Appointment',
+      todoType: 'appointment',
+      closer: 'No closer listed',
+      followUpDate: '2026-09-19',
+      appointmentDate: '2026-09-20T18:00:00.000Z',
+      appointmentInstant: new Date('2026-09-20T18:00:00.000Z')
+    }, {
+      formatDate: () => 'Sep 17, 2026',
+      formatDateTime: () => 'Sep 20, 2026, 6:00 PM MDT',
+      formatFollowUpDate: () => 'Sep 19, 2026',
+      formatFollowUpWindow: () => 'Due today',
+      normalizeFollowUpDateValue: (value) => String(value || ''),
+      onSaveFollowUp: () => {},
+      onSaveNotes: () => {},
+      onComplete: () => {},
+      onCopyConfirmation: (message, entry) => copiedMessages.push([message, entry.id])
+    });
+
+    let copyButton;
+    const walk = (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (node.tagName === 'BUTTON' && node.textContent === 'Copy confirm text') {
+        copyButton = node;
+      }
+      if (Array.isArray(node.children)) {
+        for (const child of node.children) {
+          walk(child);
+        }
+      }
+    };
+    walk(item);
+
+    assert.ok(copyButton, 'expected a copy-confirmation button to be rendered');
+    await copyButton.listeners.click();
+    assert.deepEqual(copiedMessages, [['confirmation for Aye Felix', 'appointment-1']]);
+  } finally {
+    global.document = oldDocument;
+    global.createTextElement = oldCreateTextElement;
+    global.createMetaRow = oldCreateMetaRow;
+    global.createLabelValueRow = oldCreateLabelValueRow;
+    global.buildFollowUpConfirmationMessage = oldBuildFollowUpConfirmationMessage;
   }
 });
 

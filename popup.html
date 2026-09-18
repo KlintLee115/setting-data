@@ -41,6 +41,13 @@
     .queue-item-follow-up { color: #245a95; font-weight: 700; }
     .queue-item-follow-up.is-due { color: #9a5b00; }
     .queue-item-follow-up.is-overdue { color: #b42318; }
+    .queue-item-notes { display: grid; gap: 4px; }
+    .queue-item-notes-input { width: 100%; min-height: 30px; padding: 4px 6px; border: 1px solid #d8e0eb; border-radius: 5px; color: #29364a; font: inherit; font-size: 10px; resize: vertical; box-sizing: border-box; }
+    .queue-item-notes-controls { display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
+    .queue-item-notes-status { font-size: 9px; font-weight: 700; color: #718096; }
+    .queue-item-notes-status.is-saving { color: #9a5b00; }
+    .queue-item-notes-status.is-saved { color: #1a7f37; }
+    .queue-item-notes-status.is-error { color: #b42318; }
     .queue-item-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
     .queue-item-controls input[type="date"] { width: 120px; min-height: 26px; padding: 0 6px; border: 1px solid #d8e0eb; border-radius: 5px; color: #29364a; font: inherit; font-size: 10px; }
     .queue-item-controls button { min-height: 26px; padding: 0 8px; border: 1px solid #b8cbe2; border-radius: 5px; background: #ffffff; color: #245a95; font: inherit; font-size: 10px; font-weight: 700; }
@@ -234,6 +241,7 @@
   <script src="scripts/outcome-model.js"></script>
   <script src="scripts/popup-storage.js"></script>
   <script src="scripts/appointment-queue.js"></script>
+  <script src="scripts/followup-message.js"></script>
   <script src="scripts/queue-view.js"></script>
   <script src="scripts/entry-view.js"></script>
   <script src="scripts/summary-model.js"></script>

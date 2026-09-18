@@ -205,20 +205,25 @@ function renderAppointmentQueue() {
     summaryHeading.textContent = getTimeZoneDisplayName(getReportingTimeZone());
   }
   if (!queue) return;
-  const todoItems = getTodoItems(manualEntries);
+    const queueEntries = [
+      ...logs.map((entry) => ({ ...entry, sourceType: 'call', createdAt: entry.createdAt || entry.timestamp })),
+      ...manualEntries.map((entry) => ({ ...entry, sourceType: 'manual' }))
+    ];
+    const todoItems = getTodoItems(queueEntries);
   renderQueueView(queue, todoItems, {
     formatDate,
     formatDateTime,
     formatFollowUpDate: (value) => formatFollowUpDate(value, getReportingTimeZone()),
     formatFollowUpWindow,
     normalizeFollowUpDateValue,
-    onSaveFollowUp: async (entryId, value) => {
-      const index = manualEntries.findIndex((entry) => entry.id === entryId);
+    onSaveNotes: async (entryId, value) => {
+      const entry = queueEntries.find((candidate) => candidate.id === entryId);
+      if (!entry) return;
+      const { collection, index } = findStoredEntry(entry);
       if (index < 0) return;
-      manualEntries[index].followUpDate = normalizeFollowUpDateValue(value);
-      manualEntries[index] = normalizeEntryStatus(manualEntries[index]);
+      collection[index].notes = value;
+      collection[index] = normalizeEntryStatus(collection[index]);
       await persistEntries();
-      renderAppointmentQueue();
       render();
     },
     onOpen: async (entry) => {
@@ -226,20 +231,13 @@ function renderAppointmentQueue() {
         await chrome.tabs.create({ url: entry.sourceUrl });
       }
     },
-    onComplete: async (entry, outcome) => {
-      const index = manualEntries.findIndex((candidate) => candidate.id === entry.id);
-      if (index < 0) return;
-      if (entry.todoType === 'callback') {
-        manualEntries[index].calledBack = 'Yes';
-      } else {
-        manualEntries[index].appointmentOutcome = outcome;
-      }
-      manualEntries[index] = normalizeEntryStatus(manualEntries[index]);
-      await persistEntries();
+    onCopyConfirmation: async (message) => {
+      await navigator.clipboard.writeText(message);
+    },
+    onDelete: async (entry) => {
+      await deleteEntry(entry);
       renderAppointmentQueue();
-      render();
-      renderPickupSummary();
-    }
+    },
   });
 }
 
@@ -549,8 +547,17 @@ function updateConditionalFields() {
       return control && control.value === expectedValue;
     });
     field.style.display = visible ? 'grid' : 'none';
+    if (!visible) {
+      clearFieldValues(field);
+    }
   });
   updateConversationOutcomeVisibility();
+}
+
+function clearFieldValues(container) {
+  container.querySelectorAll('input, select, textarea').forEach((control) => {
+    control.value = '';
+  });
 }
 
 function updateConversationOutcomeVisibility() {
@@ -563,6 +570,9 @@ function updateConversationOutcomeVisibility() {
   const settingStage = document.querySelector('[data-show-when="phone-picked-up=Yes&disqualified=No&pitched=Yes"]');
   const settingVisible = settingStage?.style.display !== 'none';
   outcome.style.display = phonePickedUp === 'Yes' && reachedBadOutcome ? 'grid' : 'none';
+  if (outcome.style.display === 'none') {
+    clearFieldValues(outcome);
+  }
   document.querySelector('[name="leaveReason"]').required = outcome.style.display === 'grid';
   document.querySelector('[name="closer"]').required = settingVisible && wasSet === 'Yes';
   document.querySelector('[name="appointmentDate"]').required = settingVisible && wasSet === 'Yes';

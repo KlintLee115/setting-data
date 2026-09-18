@@ -17,20 +17,16 @@ function createQueueEmptyState() {
   return item;
 }
 
-function createQueueItem(entry, { formatDate, formatDateTime, formatFollowUpDate, formatFollowUpWindow, normalizeFollowUpDateValue, onSaveFollowUp, onOpen, onComplete }) {
+function createQueueItem(entry, { formatDate, formatDateTime, onSaveNotes, onOpen, onCopyConfirmation, onDelete }) {
   const item = document.createElement('li');
   item.className = 'queue-item';
   const title = createTextElement('div', 'queue-item-title', entry.fullName || 'Unknown lead');
   const badge = createTextElement('span', 'queue-badge', entry.label);
-  const whenText = entry.followUpDate ? formatFollowUpWindow(entry.followUpDate) : 'No follow-up';
-  const whenClass = whenText === 'No follow-up' ? 'is-neutral' : whenText === 'Due today' || whenText === 'Due now' ? 'is-due' : '';
-  const when = createTextElement('span', `queue-item-when ${whenClass}`, whenText);
   const rightSide = createTextElement('div', 'queue-item-head-right', '');
-  rightSide.append(badge, when);
+  rightSide.append(badge);
   const head = createTextElement('div', 'queue-item-head', '');
   head.append(title, rightSide);
 
-  const followUpValue = entry.followUpDate ? formatFollowUpDate(entry.followUpDate) : 'Not set';
   const detailLine = createMetaRow(entry.todoType === 'callback'
     ? [
       { text: 'Called:', className: 'queue-item-meta-label' },
@@ -46,38 +42,80 @@ function createQueueItem(entry, { formatDate, formatDateTime, formatFollowUpDate
       { text: 'Appt:', className: 'queue-item-meta-label' },
       { text: formatDateTime(entry.appointmentDate), className: 'queue-item-meta-value' }
     ]);
-  const followUpLine = createLabelValueRow('Follow-up:', followUpValue);
   const closerLine = createLabelValueRow('Closer:', entry.closer || 'No closer listed');
-  const notesLine = entry.todoType === 'callback' && entry.notes
-    ? createLabelValueRow('Notes:', entry.notes)
-    : null;
-  const input = document.createElement('input');
-  input.type = 'date';
-  input.value = normalizeFollowUpDateValue(entry.followUpDate) || '';
-  const save = createTextElement('button', '', 'Save');
-  save.type = 'button';
-  save.addEventListener('click', () => onSaveFollowUp(entry.id, input.value));
+
+  const notesLabel = createTextElement('div', 'queue-item-meta-label', 'Notes:');
+  const notesInput = document.createElement('textarea');
+  notesInput.className = 'queue-item-notes-input';
+  notesInput.rows = 2;
+  notesInput.placeholder = 'Add a note…';
+  notesInput.value = entry.notes || '';
+  const notesSave = createTextElement('button', '', 'Save note');
+  notesSave.type = 'button';
+  const notesStatus = createTextElement('span', 'queue-item-notes-status', '');
+  let notesStatusTimer = null;
+  notesSave.addEventListener('click', async () => {
+    if (typeof onSaveNotes !== 'function') return;
+    notesStatus.textContent = 'Saving…';
+    notesStatus.className = 'queue-item-notes-status is-saving';
+    try {
+      await onSaveNotes(entry.id, notesInput.value);
+      notesStatus.textContent = 'Saved';
+      notesStatus.className = 'queue-item-notes-status is-saved';
+    } catch (error) {
+      notesStatus.textContent = 'Failed to save';
+      notesStatus.className = 'queue-item-notes-status is-error';
+    }
+    if (notesStatusTimer) {
+      clearTimeout(notesStatusTimer);
+    }
+    notesStatusTimer = setTimeout(() => {
+      notesStatus.textContent = '';
+      notesStatus.className = 'queue-item-notes-status';
+    }, 2000);
+  });
+  const notesControls = createTextElement('div', 'queue-item-notes-controls', '');
+  notesControls.append(notesStatus, notesSave);
+  const notesLine = createTextElement('div', 'queue-item-notes', '');
+  notesLine.append(notesLabel, notesInput, notesControls);
+
   const open = createTextElement('button', '', 'Open GHL');
   open.type = 'button';
   open.disabled = !entry.sourceUrl;
   open.addEventListener('click', () => onOpen(entry));
-  const complete = createTextElement('button', '', entry.todoType === 'callback' ? 'Mark called back' : 'Completed');
-  complete.type = 'button';
-  complete.addEventListener('click', () => onComplete(entry, entry.todoType === 'callback' ? 'Called back' : 'Completed'));
+  const deleteButton = createTextElement('button', '', 'Delete');
+  deleteButton.type = 'button';
+  deleteButton.addEventListener('click', () => onDelete(entry));
   const controls = createTextElement('div', 'queue-item-controls', '');
-  controls.append(input, save, open, complete);
+  controls.append(open, deleteButton);
   if (entry.todoType === 'appointment') {
-    const noShow = createTextElement('button', '', 'No-show');
-    noShow.type = 'button';
-    noShow.addEventListener('click', () => onComplete(entry, 'No-show'));
-    controls.append(noShow);
+    const confirmStatus = createTextElement('span', 'queue-item-notes-status', '');
+    let confirmStatusTimer = null;
+    const copyConfirmation = createTextElement('button', '', 'Copy confirm text');
+    copyConfirmation.type = 'button';
+    copyConfirmation.addEventListener('click', async () => {
+      if (typeof onCopyConfirmation !== 'function') return;
+      const message = buildFollowUpConfirmationMessage(entry);
+      try {
+        await onCopyConfirmation(message, entry);
+        confirmStatus.textContent = 'Copied';
+        confirmStatus.className = 'queue-item-notes-status is-saved';
+      } catch (error) {
+        confirmStatus.textContent = 'Failed to copy';
+        confirmStatus.className = 'queue-item-notes-status is-error';
+      }
+      if (confirmStatusTimer) {
+        clearTimeout(confirmStatusTimer);
+      }
+      confirmStatusTimer = setTimeout(() => {
+        confirmStatus.textContent = '';
+        confirmStatus.className = 'queue-item-notes-status';
+      }, 2000);
+    });
+    controls.append(copyConfirmation, confirmStatus);
   }
   const meta = createTextElement('div', 'queue-item-meta', '');
-  meta.append(detailLine, followUpLine, closerLine);
-  if (notesLine) {
-    meta.append(notesLine);
-  }
-  meta.append(controls);
+  meta.append(detailLine, closerLine, notesLine, controls);
   item.append(head, meta);
   return item;
 }
