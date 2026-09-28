@@ -231,7 +231,6 @@ function getEntryFormData(form) {
     objections,
     objectionNotes: formData.get('objectionNotes').trim(),
     pitched,
-    wasSet: pitched === 'High Ticket' ? 'Yes' : pitched ? 'No' : '',
     closer: formData.get('closer').trim(),
     appointmentDate: appointmentDate ? new Date(appointmentDate).toISOString() : '',
     status: normalizedStatus,
