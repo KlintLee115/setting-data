@@ -302,28 +302,13 @@
       const talkTime = addTextField(fields, 'talkTime', 'Talk time (MM:SS)');
       const talkToListenRatio = addTextField(fields, 'talkToListenRatio', 'Talk to listen ratio');
       const clientType = addSelectField(fields, 'clientType', 'Client type', [['', 'Select'], ['Business Owner', 'Business Owner'], ['9-5', '9-5'], ['Unemployed', 'Unemployed']]);
-      const objectionPartner = addCheckboxField(fields, 'objectionPartner', 'Partner');
-      const objectionHadToGo = addCheckboxField(fields, 'objectionHadToGo', 'Had to go');
-      const objectionNotInterested = addCheckboxField(fields, 'objectionNotInterested', 'Not interested');
-      const objectionJustCurious = addCheckboxField(fields, 'objectionJustCurious', 'Just curious');
-      const objectionSellMe = addCheckboxField(fields, 'objectionSellMe', 'Are u trying to sell me');
+      const objectionCheckboxes = OBJECTION_OPTIONS.map(([key, label]) => [label, addCheckboxField(fields, key, label)]);
       const objectionNotes = addTextField(fields, 'objectionNotes', 'Objection notes (optional)');
       actions.append(nextButton('Next', () => {
         callFlow.data.talkTime = talkTime.value;
         callFlow.data.talkToListenRatio = talkToListenRatio.value;
         callFlow.data.clientType = clientType.value;
-        callFlow.data.objectionPartner = objectionPartner.checked;
-        callFlow.data.objectionHadToGo = objectionHadToGo.checked;
-        callFlow.data.objectionNotInterested = objectionNotInterested.checked;
-        callFlow.data.objectionJustCurious = objectionJustCurious.checked;
-        callFlow.data.objectionSellMe = objectionSellMe.checked;
-        callFlow.data.objections = [
-          ['Partner', objectionPartner],
-          ['Had to go', objectionHadToGo],
-          ['Not interested', objectionNotInterested],
-          ['Just curious', objectionJustCurious],
-          ['Are u trying to sell me', objectionSellMe]
-        ]
+        callFlow.data.objections = objectionCheckboxes
           .filter(([, checkbox]) => checkbox.checked)
           .map(([label]) => label)
           .join(', ');

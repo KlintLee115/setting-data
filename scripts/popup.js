@@ -1,21 +1,6 @@
 const logBody = document.getElementById('log-body');
 const dateFilter = document.getElementById('date-filter');
 const count = document.getElementById('count');
-const summaryDate = document.getElementById('summary-date');
-const pickupSummaryBody = document.getElementById('pickup-summary-body');
-const dailyCalls = document.getElementById('daily-calls');
-const dailyPickups = document.getElementById('daily-pickups');
-const dailyDisqualified = document.getElementById('daily-disqualified');
-const dailyPitches = document.getElementById('daily-pitches');
-const dailyAppointments = document.getElementById('daily-appointments');
-const dailyNoAnswers = document.getElementById('daily-no-answers');
-const dailyMoney = document.getElementById('daily-money');
-const dailyPartner = document.getElementById('daily-partner');
-const dailyTiming = document.getElementById('daily-timing');
-const dailyHadToGo = document.getElementById('daily-had-to-go');
-const dailyPitchRate = document.getElementById('daily-pitch-rate');
-const dailySetRate = document.getElementById('daily-set-rate');
-const dailyAverageDuration = document.getElementById('daily-average-duration');
 const importStatus = document.getElementById('import-status');
 const saveEntryButton = document.getElementById('save-entry');
 const clearFormButton = document.getElementById('clear-form');
@@ -25,14 +10,6 @@ const {
   getLocalDateValue,
   updateCallDateTime
 } = globalThis.popupSettings;
-
-const OBJECTION_FIELDS = [
-  ['objectionPartner', 'Partner'],
-  ['objectionHadToGo', 'Had to go'],
-  ['objectionNotInterested', 'Not interested'],
-  ['objectionJustCurious', 'Just curious'],
-  ['objectionSellMe', 'Are u trying to sell me']
-];
 
 let logs = [];
 let manualEntries = [];
@@ -71,7 +48,7 @@ async function showCallLogger() {
     try {
       result = await chrome.tabs.sendMessage(tab.id, { type: 'show-call-logger' });
     } catch (error) {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['scripts/content.js'] });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['scripts/objection-options.js', 'scripts/content.js'] });
       result = await chrome.tabs.sendMessage(tab.id, { type: 'show-call-logger' });
     }
     importStatus.textContent = result?.shown
@@ -82,11 +59,6 @@ async function showCallLogger() {
   } finally {
     showCallLoggerButton.disabled = false;
   }
-}
-
-function durationToSeconds(value) {
-  const match = String(value || '').match(/^(\d+):(\d{2})$/);
-  return match ? Number(match[1]) * 60 + Number(match[2]) : 0;
 }
 
 function getFormDraft() {
@@ -178,73 +150,6 @@ function getStatusClass(status) {
   return 'no-answer';
 }
 
-function getHourlyCallTime(entry) {
-  const timestamp = entry.callDateTime || entry.pickupDateTime || entry.createdAt;
-  return parseStoredDateTime(timestamp);
-}
-
-function getLocalHour(date) {
-  return date.getHours();
-}
-
-function getDailyEntries() {
-  const selectedDate = summaryDate.value;
-  return [
-    ...logs.map((log) => ({ ...log, entryType: 'Call', createdAt: log.timestamp })),
-    ...manualEntries.map((entry) => ({ ...entry, entryType: 'Entry' }))
-  ].filter((entry) => {
-    const callTime = getHourlyCallTime(entry);
-    return Number.isFinite(callTime.getTime())
-      && getLocalDateValue(callTime) === selectedDate;
-  });
-}
-
-function renderPickupSummary() {
-  const dailyEntries = getDailyEntries();
-  const entries = dailyEntries.filter((entry) => entry.entryType === 'Call'
-    || ['Yes', 'No'].includes(entry.phonePickedUp));
-  const summary = getDailySummary(dailyEntries, durationToSeconds);
-
-  pickupSummaryBody.replaceChildren();
-  getHourlySummary(entries, (entry) => getLocalHour(getHourlyCallTime(entry))).forEach((hourly) => {
-    const row = document.createElement('tr');
-    const timeCell = document.createElement('td');
-    const totalCell = document.createElement('td');
-    const pickedUpCell = document.createElement('td');
-    const rateCell = document.createElement('td');
-    timeCell.textContent = `${formatHour(hourly.hour)} - ${formatHour(hourly.hour + 1)}`;
-    totalCell.textContent = hourly.total;
-    pickedUpCell.textContent = hourly.pickedUp;
-    rateCell.className = 'rate';
-    rateCell.textContent = hourly.rate === null ? '-' : `${hourly.rate.toFixed(2)}%`;
-    row.append(timeCell, totalCell, pickedUpCell, rateCell);
-    pickupSummaryBody.appendChild(row);
-  });
-
-  dailyCalls.textContent = summary.calls;
-  dailyPickups.textContent = summary.pickups;
-  dailyDisqualified.textContent = summary.disqualified;
-  dailyPitches.textContent = summary.pitches;
-  dailyAppointments.textContent = summary.appointments;
-  dailyNoAnswers.textContent = summary.noAnswers;
-  dailyMoney.textContent = summary.money;
-  dailyPartner.textContent = summary.partner;
-  dailyTiming.textContent = summary.timing;
-  dailyHadToGo.textContent = summary.hadToGo;
-  dailyPitchRate.textContent = summary.pitchRate === null ? '-' : `${summary.pitchRate.toFixed(1)}%`;
-  dailySetRate.textContent = summary.setRate === null ? '-' : `${summary.setRate.toFixed(1)}%`;
-  dailyAverageDuration.textContent = summary.averageDuration
-    ? `${Math.floor(summary.averageDuration / 60)}:${String(summary.averageDuration % 60).padStart(2, '0')}`
-    : '-';
-}
-
-function formatHour(hour) {
-  const normalizedHour = hour % 24;
-  const suffix = normalizedHour >= 12 ? 'pm' : 'am';
-  const displayHour = normalizedHour % 12 || 12;
-  return `${displayHour}${suffix}`;
-}
-
 function render() {
   const entries = [
     ...logs.map((log) => ({ ...log, entryType: 'Call', sourceType: 'call', createdAt: log.timestamp })),
@@ -290,7 +195,6 @@ async function loadLogs() {
   manualEntries = manualEntries.map((entry) => ({ ...normalizeEntryStatus(entry), id: entry.id || createEntryId() }));
   await persistEntries();
   render();
-  renderPickupSummary();
 }
 
 function getEntryFormData(form) {
@@ -298,7 +202,7 @@ function getEntryFormData(form) {
   const appointmentDate = formData.get('appointmentDate');
   const pitched = formData.get('pitched');
   const phonePickedUp = formData.get('phonePickedUp');
-  const objections = OBJECTION_FIELDS
+  const objections = OBJECTION_OPTIONS
     .filter(([name]) => formData.get(name))
     .map(([, label]) => label)
     .join(', ');
@@ -439,7 +343,6 @@ async function deleteEntry(entry) {
     resetEntryForm();
   }
   render();
-  renderPickupSummary();
 }
 
 document.getElementById('manual-entry-form').addEventListener('submit', async (event) => {
@@ -498,7 +401,6 @@ document.getElementById('manual-entry-form').addEventListener('submit', async (e
   await popupStorage.clearDraft();
   resetEntryForm();
   render();
-  renderPickupSummary();
 });
 
 function updateConditionalFields() {
@@ -558,8 +460,6 @@ dateFilter.addEventListener('change', () => {
   entryRenderLimit = 50;
   render();
 });
-summaryDate.value = getLocalDateValue();
-summaryDate.addEventListener('change', renderPickupSummary);
 document.querySelectorAll('[data-sort]').forEach((button) => {
   button.addEventListener('click', () => {
     const key = button.dataset.sort;

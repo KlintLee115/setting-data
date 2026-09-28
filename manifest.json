@@ -20,6 +20,7 @@
         "https://*.msgsndr.com/*"
       ],
       "js": [
+        "scripts/objection-options.js",
         "scripts/content.js"
       ],
       "run_at": "document_idle"

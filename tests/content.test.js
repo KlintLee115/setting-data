@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { OBJECTION_OPTIONS } = require('../scripts/objection-options');
 
 const contentScript = fs.readFileSync(`${__dirname}/../scripts/content.js`, 'utf8');
 
@@ -87,6 +88,7 @@ function loadContentScript(storageGetError, storageSetError, composerMode = 'tex
     }
   };
   const context = {
+    OBJECTION_OPTIONS,
     chrome: {
       runtime: {
         onMessage: {

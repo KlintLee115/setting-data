@@ -44,18 +44,6 @@
     .entry-form button:hover { background: #1d4d80; }
     .entry-form .secondary { color: #245a95; border-color: #b8cbe2; background: #ffffff; }
     .entry-form .secondary:hover { background: #f0f4f9; }
-    .summary-controls { display: flex; gap: 8px; margin-bottom: 9px; }
-    .summary-controls input { flex: 1; min-height: 34px; padding: 0 9px; border: 1px solid #d8e0eb; border-radius: 7px; color: #29364a; font: inherit; font-size: 12px; }
-    .daily-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 9px; }
-    .daily-stat { min-width: 0; padding: 9px 5px; border: 1px solid #e1e7ef; border-radius: 7px; background: #ffffff; text-align: center; }
-    .daily-stat-value { display: block; color: #172033; font-size: 16px; font-weight: 700; }
-    .daily-stat-label { display: block; overflow: hidden; margin-top: 3px; color: #718096; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-    .summary-wrap { overflow: hidden; border: 1px solid #e1e7ef; border-radius: 9px; background: #ffffff; }
-    .summary-table tbody { max-height: 250px; }
-    .summary-table th:nth-child(1), .summary-table td:nth-child(1) { width: 42%; }
-    .summary-table th:nth-child(2), .summary-table td:nth-child(2), .summary-table th:nth-child(3), .summary-table td:nth-child(3) { width: 19%; text-align: center; }
-    .summary-table th:nth-child(4), .summary-table td:nth-child(4) { width: 20%; text-align: right; }
-    .rate { font-weight: 700; }
     .table-wrap { overflow: hidden; border: 1px solid #e1e7ef; border-radius: 9px; background: #ffffff; }
     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
     th, td { padding: 10px 8px; border-bottom: 1px solid #edf1f6; text-align: left; vertical-align: middle; }
@@ -157,39 +145,12 @@
         <tbody id="log-body"></tbody>
       </table>
     </div>
-    <h2 class="section-title">Daily summary</h2>
-    <div class="summary-controls">
-      <input id="summary-date" type="date" aria-label="Summary date">
-    </div>
-    <div class="daily-stats">
-      <div class="daily-stat"><span class="daily-stat-value" id="daily-calls">0</span><span class="daily-stat-label">Calls</span></div>
-      <div class="daily-stat"><span class="daily-stat-value" id="daily-pickups">0</span><span class="daily-stat-label">Pick Ups</span></div>
-      <div class="daily-stat"><span class="daily-stat-value" id="daily-disqualified">0</span><span class="daily-stat-label">Disqualified</span></div>
-      <div class="daily-stat"><span class="daily-stat-value" id="daily-pitches">0</span><span class="daily-stat-label">Pitches</span></div>
-      <div class="daily-stat"><span class="daily-stat-value" id="daily-appointments">0</span><span class="daily-stat-label">Appts. Set</span></div>
-      <div class="daily-stat"><span class="daily-stat-value" id="daily-no-answers">0</span><span class="daily-stat-label">No Answers</span></div>
-      <div class="daily-stat"><span class="daily-stat-value" id="daily-money">0</span><span class="daily-stat-label">Money</span></div>
-      <div class="daily-stat"><span class="daily-stat-value" id="daily-partner">0</span><span class="daily-stat-label">Partner</span></div>
-      <div class="daily-stat"><span class="daily-stat-value" id="daily-timing">0</span><span class="daily-stat-label">Timing</span></div>
-      <div class="daily-stat"><span class="daily-stat-value" id="daily-had-to-go">0</span><span class="daily-stat-label">Had To Go</span></div>
-      <div class="daily-stat"><span class="daily-stat-value" id="daily-pitch-rate">-</span><span class="daily-stat-label">Pitch Rate</span></div>
-      <div class="daily-stat"><span class="daily-stat-value" id="daily-set-rate">-</span><span class="daily-stat-label">Set Rate</span></div>
-      <div class="daily-stat"><span class="daily-stat-value" id="daily-average-duration">-</span><span class="daily-stat-label">Avg. Duration</span></div>
-    </div>
-    <h2 class="section-title">Pickup rate tracker</h2>
-    <div class="summary-wrap">
-      <table class="summary-table">
-        <thead><tr><th>Local time</th><th>Calls</th><th>Picked up</th><th>Rate</th></tr></thead>
-        <tbody id="pickup-summary-body"></tbody>
-      </table>
-    </div>
   </main>
   <script src="scripts/timezone.js"></script>
+  <script src="scripts/objection-options.js"></script>
   <script src="scripts/entry-model.js"></script>
-  <script src="scripts/outcome-model.js"></script>
   <script src="scripts/popup-storage.js"></script>
   <script src="scripts/entry-view.js"></script>
-  <script src="scripts/summary-model.js"></script>
   <script src="scripts/popup-data-transfer.js"></script>
   <script src="scripts/popup-settings.js"></script>
   <script src="scripts/popup.js"></script>
