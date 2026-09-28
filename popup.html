@@ -88,9 +88,7 @@
         <option value="all">All time</option>
         <option value="today">Today</option>
       </select>
-      <button id="export-csv" type="button">Export CSV</button>
-      <button id="import-csv" type="button">Import CSV</button>
-      <input id="import-csv-file" type="file" accept=".csv,text/csv" hidden>
+      <button id="export-xlsx" type="button">Export XLSX</button>
       <button id="show-call-logger" type="button">Show Call Logger</button>
       <span class="import-status" id="import-status" aria-live="polite"></span>
     </div>
@@ -151,6 +149,7 @@
   <script src="scripts/entry-model.js"></script>
   <script src="scripts/popup-storage.js"></script>
   <script src="scripts/entry-view.js"></script>
+  <script src="scripts/vendor/xlsx.full.min.js"></script>
   <script src="scripts/popup-data-transfer.js"></script>
   <script src="scripts/popup-settings.js"></script>
   <script src="scripts/popup.js"></script>

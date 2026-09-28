@@ -1,92 +1,84 @@
 (() => {
 const ENTRIES_KEY = 'entries';
 
-const CSV_COLUMNS = [
-  ['type', (entry) => entry.recordType === 'call' ? 'Call' : 'Manual'],
-  ['name', (entry) => entry.recordType === 'call' ? entry.name : entry.fullName],
-  ['email', (entry) => entry.email],
-  ['phone', (entry) => entry.phone],
-  ['status', (entry) => entry.status],
-  ['callDateTime', (entry) => entry.callDateTime],
-  ['callDuration', (entry) => entry.callDuration],
-  ['phonePickedUp', (entry) => entry.phonePickedUp],
-  ['disqualified', (entry) => entry.disqualified],
-  ['disqualificationReason', (entry) => entry.disqualificationReason],
-  ['talkTime', (entry) => entry.talkTime],
-  ['talkToListenRatio', (entry) => entry.talkToListenRatio],
-  ['clientType', (entry) => entry.clientType],
-  ['objections', (entry) => entry.objections],
-  ['objectionNotes', (entry) => entry.objectionNotes],
-  ['pitched', (entry) => entry.pitched],
-  ['closer', (entry) => entry.closer],
-  ['appointmentDate', (entry) => entry.appointmentDate],
-  ['lastTextMessage', (entry) => entry.lastTextMessage],
-  ['notes', (entry) => entry.notes],
-  ['sourceUrl', (entry) => entry.sourceUrl]
+const ANALYSIS_COLUMNS = [
+  ['Record type', (entry) => entry.recordType === 'call' ? 'Call' : 'Manual'],
+  ['Lead name', (entry) => entry.recordType === 'call' ? entry.name : entry.fullName],
+  ['Email', (entry) => entry.email],
+  ['Phone', (entry) => entry.phone],
+  ['Outcome', (entry) => entry.status],
+  ['Call date/time', (entry) => toExcelDate(entry.callDateTime || entry.timestamp || entry.createdAt)],
+  ['Call duration (seconds)', (entry) => durationToSeconds(entry.callDuration)],
+  ['Picked up?', (entry) => entry.phonePickedUp],
+  ['Disqualified?', (entry) => entry.disqualified],
+  ['Disqualification reason', (entry) => entry.disqualificationReason],
+  ['Talk time (seconds)', (entry) => durationToSeconds(entry.talkTime)],
+  ['Talk-to-listen ratio', (entry) => entry.talkToListenRatio],
+  ['Client type', (entry) => entry.clientType],
+  ['Objection: Partner', (entry) => hasObjection(entry.objections, 'Partner')],
+  ['Objection: Had to go', (entry) => hasObjection(entry.objections, 'Had to go')],
+  ['Objection: Not interested', (entry) => hasObjection(entry.objections, 'Not interested')],
+  ['Objection: Just curious', (entry) => hasObjection(entry.objections, 'Just curious')],
+  ['Objection: Are u trying to sell me', (entry) => hasObjection(entry.objections, 'Are u trying to sell me')],
+  ['Objection notes', (entry) => entry.objectionNotes],
+  ['Pitch outcome', (entry) => entry.pitched],
+  ['Closer', (entry) => entry.closer],
+  ['Appointment date/time', (entry) => toExcelDate(entry.appointmentDate)],
+  ['Last text message', (entry) => entry.lastTextMessage],
+  ['Notes', (entry) => entry.notes],
+  ['Source URL', (entry) => entry.sourceUrl]
 ];
 
-function toCsvValue(value) {
-  const text = value === undefined || value === null ? '' : String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+function toExcelDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date;
 }
 
-function parseCsv(text) {
-  const rows = [];
-  let row = [];
-  let field = '';
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
-    if (inQuotes) {
-      if (char === '"' && text[i + 1] === '"') {
-        field += '"';
-        i += 1;
-      } else if (char === '"') {
-        inQuotes = false;
-      } else {
-        field += char;
-      }
-    } else if (char === '"') {
-      inQuotes = true;
-    } else if (char === ',') {
-      row.push(field);
-      field = '';
-    } else if (char === '\r') {
-      // ignore, newline is handled by \n
-    } else if (char === '\n') {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = '';
-    } else {
-      field += char;
+function durationToSeconds(value) {
+  if (value === undefined || value === null || value === '') return '';
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const text = String(value).trim();
+  if (!/^\d+(?::\d{1,2}){0,2}$/.test(text)) return '';
+  const parts = text.split(':').map(Number);
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return '';
+}
+
+function hasObjection(value, objection) {
+  return String(value || '').split(',').map((item) => item.trim()).includes(objection);
+}
+
+function buildWorkbook(entries) {
+  const rows = [
+    ANALYSIS_COLUMNS.map(([header]) => header),
+    ...entries.map((entry) => ANALYSIS_COLUMNS.map(([, getValue]) => getValue(entry) ?? ''))
+  ];
+  const worksheet = XLSX.utils.aoa_to_sheet(rows, { cellDates: true });
+  const range = XLSX.utils.decode_range(worksheet['!ref']);
+  const dateColumns = ['Call date/time', 'Appointment date/time'];
+
+  for (let row = 1; row <= range.e.r; row += 1) {
+    for (const header of dateColumns) {
+      const column = ANALYSIS_COLUMNS.findIndex(([name]) => name === header);
+      const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: column })];
+      if (cell?.t === 'd') cell.z = 'yyyy-mm-dd hh:mm';
     }
   }
-  if (field.length || row.length) {
-    row.push(field);
-    rows.push(row);
-  }
-  return rows.filter((cells) => cells.some((cell) => cell !== ''));
-}
 
-function csvRowsToEntries(rows) {
-  const [header, ...dataRows] = rows;
-  if (!header || !header.includes('type')) {
-    throw new Error('CSV must include the exported header row.');
-  }
-  return dataRows.map((row) => {
-    const record = {};
-    header.forEach((key, index) => {
-      record[key] = row[index] ?? '';
-    });
-    const recordType = record.type === 'Call' ? 'call' : 'entry';
-    const { type, name, ...rest } = record;
-    return {
-      ...rest,
-      recordType,
-      ...(recordType === 'call' ? { name } : { fullName: name })
-    };
-  });
+  worksheet['!autofilter'] = { ref: worksheet['!ref'] };
+  worksheet['!cols'] = [
+    { wch: 12 }, { wch: 24 }, { wch: 28 }, { wch: 18 }, { wch: 18 },
+    { wch: 21 }, { wch: 23 }, { wch: 14 }, { wch: 15 }, { wch: 26 },
+    { wch: 20 }, { wch: 20 }, { wch: 20 }, ...Array(5).fill({ wch: 25 }),
+    { wch: 32 }, { wch: 18 }, { wch: 22 }, { wch: 23 }, { wch: 40 },
+    { wch: 40 }, { wch: 45 }
+  ];
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Entries');
+  return workbook;
 }
 
 async function loadCombinedEntries() {
@@ -111,36 +103,17 @@ function downloadFile(content, filename, mimeType) {
   URL.revokeObjectURL(url);
 }
 
-async function exportCsv() {
+async function exportXlsx() {
   const entries = await loadCombinedEntries();
-  const header = CSV_COLUMNS.map(([name]) => name).join(',');
-  const rows = entries.map((entry) => CSV_COLUMNS.map(([, getValue]) => toCsvValue(getValue(entry))).join(','));
-  downloadFile([header, ...rows].join('\r\n'), `call-log-export-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8;');
-}
-
-async function restoreCsv(event) {
-  const file = event.target.files[0];
-  event.target.value = '';
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = async (loadEvent) => {
-    try {
-      const entries = csvRowsToEntries(parseCsv(loadEvent.target.result));
-      await chrome.storage.local.set({ [ENTRIES_KEY]: entries });
-      alert('Data restored successfully.');
-      location.reload();
-    } catch (error) {
-      alert(`Could not restore CSV: ${error.message}`);
-    }
-  };
-  reader.readAsText(file);
+  const workbook = buildWorkbook(entries);
+  const content = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  downloadFile(content, `call-log-export-${new Date().toISOString().slice(0, 10)}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }
 
 function setupPopupDataTransfer() {
-  document.getElementById('export-csv').addEventListener('click', exportCsv);
-  document.getElementById('import-csv').addEventListener('click', () => document.getElementById('import-csv-file').click());
-  document.getElementById('import-csv-file').addEventListener('change', restoreCsv);
+  document.getElementById('export-xlsx').addEventListener('click', exportXlsx);
 }
 
+globalThis.popupDataTransfer = { buildWorkbook, durationToSeconds };
 globalThis.setupPopupDataTransfer = setupPopupDataTransfer;
 })();

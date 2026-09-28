@@ -13,7 +13,7 @@ The extension runs entirely in the browser. It uses `chrome.storage.local` and d
 - Draft persistence when the popup is closed
 - Edit and delete entries
 - Duplicate-call warning based on normalized lead name and call time
-- CSV export and import
+- Excel workbook export
 
 ## Install Locally
 
@@ -88,17 +88,15 @@ The primary unified collection. Each record has a stable `id` and may include:
 
 The older `callLogs` and `manualEntries` keys are maintained as compatibility mirrors for existing data and content-script behavior.
 
-This extension intentionally does not compute outcome rates or summaries — export to CSV and analyze in Excel/Google Sheets instead.
+This extension intentionally does not compute outcome rates or summaries — export to XLSX and analyze in Excel/Google Sheets instead.
 
 ### Drafts
 
 `conversationDraft` stores unfinished form data so closing the popup does not lose work. Drafts are removed after saving, clearing, or cancelling.
 
-## Backup and Restore
+## Export
 
-Use **Export CSV** to download the unified `entries` collection as a local CSV file, which opens in Excel and can be imported into Google Sheets.
-
-Use **Import CSV** to load a previously exported CSV file. The file must contain the exported header row. Import replaces the current unified collection after validation and reloads the popup.
+Use **Export XLSX** to download the unified `entries` collection as a local Excel workbook. The `Entries` sheet has typed date/time values, durations in seconds, individual boolean columns for each objection, filterable headers, and analysis-friendly column widths.
 
 Keep exported files somewhere secure because they may contain names, phone numbers, email addresses, and notes.
 
@@ -110,7 +108,7 @@ Keep exported files somewhere secure because they may contain names, phone numbe
 - No analytics or telemetry
 - Data stays in Chrome extension storage on the local browser profile
 
-Anyone with access to the Chrome profile may be able to access the extension data. Use CSV exports carefully because they contain potentially sensitive lead information.
+Anyone with access to the Chrome profile may be able to access the extension data. Handle XLSX exports carefully because they contain potentially sensitive lead information.
 
 ## Project Files
 
@@ -118,7 +116,7 @@ Anyone with access to the Chrome profile may be able to access the extension dat
 - `popup.html`: Dashboard and data-entry interface
 - `scripts/content.js`: GoHighLevel page detection, floating logger, and local call persistence
 - `scripts/popup.js`: Popup state, form handling, and editing
-- `scripts/popup-data-transfer.js`: CSV export and import
+- `scripts/popup-data-transfer.js`: XLSX export
 - `scripts/popup-settings.js`: Local date and time helpers
 - `scripts/entry-model.js`: Entry status normalization and record shaping
 - `scripts/objection-options.js`: Shared objection checkbox options used by the call logger and popup form
