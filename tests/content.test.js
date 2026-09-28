@@ -217,6 +217,32 @@ Are you looking to implement AI with your current biz or are you just starting o
   assert.equal(logger.composer.events.every((event) => event.bubbles), true);
 });
 
+test('supports the AI consultancy certification form no-answer message', () => {
+  const logger = loadContentScript();
+
+  logger.clickNoAnswer();
+  logger.clickAction(2);
+
+  assert.equal(logger.composer.value, `Hey Jane, Klint here from Alicia's team (not AI, I promise 😂)
+
+Saw you recently filled out the form for our AI Consultancy Certification... Just to see if I can help u get more out of it
+
+Are you looking to implement AI with your current biz or are you just starting out with AI biz?`);
+});
+
+test('supports the Build It Launch It no-answer message', () => {
+  const logger = loadContentScript();
+
+  logger.clickNoAnswer();
+  logger.clickAction(3);
+
+  assert.equal(logger.composer.value, `Hey Jane, Klint here from Alicia's team (not AI, I promise 😂)
+
+Saw you recently registefred for our Build It Launch It event... Just to see if I can help u get more out of it
+
+Are you looking to build an app for your business, or what is it for?`);
+});
+
 test('saves the no-answer message as the last text message', async () => {
   const logger = loadContentScript();
 
@@ -239,13 +265,13 @@ test('saves the current GHL page URL with the call record', async () => {
   assert.equal(saved.sourceUrl, 'https://app.gohighlevel.com/conversations');
 });
 
-test('offers VIP and standard no-answer messages before saving', async () => {
+test('offers VIP, form, standard, and Build It Launch It no-answer messages before saving', async () => {
   const logger = loadContentScript();
 
   logger.clickNoAnswer();
   await flushPromises();
   assert.equal(logger.storageCalls.some((call) => Array.isArray(call[0]?.entries)), false);
-  assert.equal(logger.actionCount(), 3);
+  assert.equal(logger.actionCount(), 5);
   logger.clickAction();
   await flushPromises();
 
@@ -266,7 +292,7 @@ test('can save a no-answer call without leaving a text message', async () => {
   const logger = loadContentScript();
 
   logger.clickNoAnswer();
-  logger.clickAction(2);
+  logger.clickAction(4);
   await flushPromises();
 
   const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
@@ -291,62 +317,69 @@ test('picked-up follows the form flow and saves appointment details', async () =
   logger.clickPickedUp();
   logger.field('disqualified').value = 'No';
   logger.clickAction();
-  logger.field('pitched').value = 'Yes';
+  logger.field('talkTime').value = '5:00';
+  logger.field('talkToListenRatio').value = '70/30';
+  logger.field('clientType').value = 'Business Owner';
+  logger.field('objectionPartner').checked = true;
+  logger.field('objectionNotes').value = 'Price';
   logger.clickAction();
-  logger.field('wasSet').value = 'Yes';
+  logger.field('pitched').value = 'High Ticket';
   logger.clickAction();
   logger.field('closer').value = 'Alicia Lyttle';
   logger.field('appointmentDate').value = '2026-09-20T10:00';
-  logger.field('followUpDate').value = '2026-09-18';
-  logger.field('appointmentTimeZone').value = 'America/Denver';
+  assert.equal(logger.field('appointmentTimeZone'), undefined);
   logger.clickAction();
   await flushPromises();
 
   const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
   assert.equal(saved.disqualified, 'No');
-  assert.equal(saved.pitched, 'Yes');
-  assert.equal(saved.wasSet, 'Yes');
+  assert.equal(saved.talkTime, '5:00');
+  assert.equal(saved.talkToListenRatio, '70/30');
+  assert.equal(saved.clientType, 'Business Owner');
+  assert.equal(saved.objections, 'Partner');
+  assert.equal(saved.objectionNotes, 'Price');
+  assert.equal(saved.pitched, 'High Ticket');
   assert.equal(saved.closer, 'Alicia Lyttle');
-  assert.equal(saved.followUpDate, '2026-09-18');
-  assert.equal(saved.appointmentDate, '2026-09-20T16:00:00.000Z');
-  assert.equal(saved.appointmentTimeZone, 'America/Denver');
+  assert.equal(saved.appointmentDate, new Date('2026-09-20T10:00').toISOString());
 });
 
-test('converts an appointment from the selected client timezone', async () => {
+test('uses browser local time for call logger appointments', async () => {
   const logger = loadContentScript();
 
   logger.clickPickedUp();
   logger.field('disqualified').value = 'No';
   logger.clickAction();
-  logger.field('pitched').value = 'Yes';
   logger.clickAction();
-  logger.field('wasSet').value = 'Yes';
+  logger.field('pitched').value = 'High Ticket';
   logger.clickAction();
   logger.field('appointmentDate').value = '2026-09-20T10:00';
-  logger.field('appointmentTimeZone').value = 'America/Los_Angeles';
+  assert.equal(logger.field('appointmentTimeZone'), undefined);
   logger.clickAction();
   await flushPromises();
 
   const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
-  assert.equal(saved.appointmentDate, '2026-09-20T17:00:00.000Z');
+  assert.equal(saved.appointmentDate, new Date('2026-09-20T10:00').toISOString());
 });
 
-test('saves whether a Had to go prospect was called back', async () => {
+test('saves directly when the pitch is declined, without a separate outcome step', async () => {
   const logger = loadContentScript();
 
   logger.clickPickedUp();
   logger.field('disqualified').value = 'No';
+  logger.clickAction();
+  logger.field('objectionHadToGo').checked = true;
+  logger.field('objectionJustCurious').checked = true;
   logger.clickAction();
   logger.field('pitched').value = 'No';
   logger.clickAction();
-  logger.field('leaveReason').value = 'Had to go';
-  logger.field('calledBack').value = 'Yes';
-  logger.clickAction();
   await flushPromises();
 
   const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
-  assert.equal(saved.leaveReason, 'Had to go');
-  assert.equal(saved.calledBack, 'Yes');
+  assert.equal(saved.pitched, 'No');
+  assert.equal(saved.objections, 'Had to go, Just curious');
+  assert.equal(saved.leaveReason, undefined);
+  assert.equal(saved.calledBack, undefined);
+  assert.equal(saved.notes, undefined);
 });
 
 test('X cancels an unfinished call entry', () => {

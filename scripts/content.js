@@ -84,10 +84,16 @@
 
   function getNoAnswerMessage(variant) {
     const firstName = currentName.trim().split(/\s+/)[0] || 'there';
-    const eventLine = variant === 'vip'
-      ? 'Saw you recently registefred for our AI Business summit and even upgraded to VIP! Just to see if I can help u get more out of it'
-      : 'Saw you recently registefred for our AI Business summit... Just to see if I can help u get more out of it';
-    return `Hey ${firstName}, Klint here from Alicia's team (not AI, I promise 😂)\n\n${eventLine}\n\nAre you looking to implement AI with your current biz or are you just starting out with AI biz?`;
+    const eventLine = {
+      vip: 'Saw you recently registefred for our AI Business summit and even upgraded to VIP! Just to see if I can help u get more out of it',
+      form: 'Saw you recently filled out the form for our AI Consultancy Certification... Just to see if I can help u get more out of it',
+      standard: 'Saw you recently registefred for our AI Business summit... Just to see if I can help u get more out of it',
+      build: 'Saw you recently registefred for our Build It Launch It event... Just to see if I can help u get more out of it'
+    }[variant];
+    if (variant === 'build') {
+      return `Hey ${firstName}, Klint here from Alicia's team (not AI, I promise 😂)\n\n${eventLine}\n\nAre you looking to build an app for your business, or what is it for?`;
+    }
+    return `Hey ${firstName}, Klint here from Alicia's team (not AI, I promise 😂)\n\n${eventLine || 'Saw you recently registefred for our AI Business summit... Just to see if I can help u get more out of it'}\n\nAre you looking to implement AI with your current biz or are you just starting out with AI biz?`;
   }
 
   function fillNoAnswerMessage(variant) {
@@ -125,38 +131,8 @@
   }
 
   function getLocalDateTimeValue(date = new Date()) {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Denver',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
-    }).formatToParts(date).reduce((values, part) => {
-      values[part.type] = part.value;
-      return values;
-    }, {});
-    return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
-  }
-
-  function zonedDateTimeToDate(value, timeZone) {
-    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-    if (!match) {
-      return new Date(value);
-    }
-    const wallClockUtc = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5]));
-    let timestamp = wallClockUtc;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone,
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
-      }).formatToParts(new Date(timestamp)).reduce((values, part) => {
-        values[part.type] = part.value;
-        return values;
-      }, {});
-      const offset = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day),
-        Number(parts.hour), Number(parts.minute), Number(parts.second)) - timestamp;
-      timestamp = wallClockUtc - offset;
-    }
-    return new Date(timestamp);
+    const pad = (part) => String(part).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
   function publishLeadSafely(name, callDateTime = '') {
@@ -251,9 +227,9 @@
     return field;
   }
 
-  function addNotesField(container) {
-    const { field, label } = createField('textarea', 'notes', 'Notes');
-    field.value = callFlow.data.notes || '';
+  function addCheckboxField(container, key, labelText) {
+    const { field, label } = createField('input', key, labelText, { type: 'checkbox' });
+    field.checked = !!callFlow.data[key];
     container.appendChild(label);
     return field;
   }
@@ -273,10 +249,10 @@
     fields.replaceChildren();
     actions.replaceChildren();
     if (!callFlow) {
-      const pickedUp = nextButton('Picked up', () => startCallFlow('Picked Up'));
+      const pickedUp = nextButton('Picked up', () => startCallFlow());
       pickedUp.className = 'picked-up';
       const noAnswer = nextButton('No answer', () => {
-        callFlow = { status: 'No Answer', step: 'message-choice', data: {} };
+        callFlow = { step: 'message-choice', data: {} };
         renderCallFlow();
       });
       noAnswer.className = 'no-answer';
@@ -288,7 +264,7 @@
       heading.textContent = 'Which message do you want to use?';
       heading.className = 'message-choice-heading';
       fields.appendChild(heading);
-      [['vip', 'Use VIP message'], ['standard', 'Use standard message']].forEach(([variant, label]) => {
+      [['vip', 'Use VIP message'], ['standard', 'Use standard message'], ['form', 'Use certification form message'], ['build', 'Use Build It Launch It message']].forEach(([variant, label]) => {
         const message = getNoAnswerMessage(variant);
         const choice = document.createElement('div');
         choice.className = 'message-choice';
@@ -313,65 +289,74 @@
       const disqualified = addSelectField(fields, 'disqualified', 'Disqualified?', [['', 'Select'], ['Yes', 'Yes'], ['No', 'No']]);
       actions.append(nextButton('Next', () => {
         callFlow.data.disqualified = disqualified.value;
-        callFlow.step = disqualified.value === 'Yes' ? 'disqualification' : 'pitch';
+        callFlow.step = disqualified.value === 'Yes' ? 'disqualification' : 'details';
         renderCallFlow();
       }));
     } else if (callFlow.step === 'disqualification') {
       const reason = addTextField(fields, 'disqualificationReason', 'Reason');
-      addNotesField(fields);
       actions.append(nextButton('Save', () => {
         callFlow.data.disqualificationReason = reason.value;
-        callFlow.data.notes = fields.querySelector('.notes').value;
         saveCallSafely('Picked Up', callFlow.data);
       }));
+    } else if (callFlow.step === 'details') {
+      const talkTime = addTextField(fields, 'talkTime', 'Talk time (MM:SS)');
+      const talkToListenRatio = addTextField(fields, 'talkToListenRatio', 'Talk to listen ratio');
+      const clientType = addSelectField(fields, 'clientType', 'Client type', [['', 'Select'], ['Business Owner', 'Business Owner'], ['9-5', '9-5'], ['Unemployed', 'Unemployed']]);
+      const objectionPartner = addCheckboxField(fields, 'objectionPartner', 'Partner');
+      const objectionHadToGo = addCheckboxField(fields, 'objectionHadToGo', 'Had to go');
+      const objectionNotInterested = addCheckboxField(fields, 'objectionNotInterested', 'Not interested');
+      const objectionJustCurious = addCheckboxField(fields, 'objectionJustCurious', 'Just curious');
+      const objectionSellMe = addCheckboxField(fields, 'objectionSellMe', 'Are u trying to sell me');
+      const objectionNotes = addTextField(fields, 'objectionNotes', 'Objection notes (optional)');
+      actions.append(nextButton('Next', () => {
+        callFlow.data.talkTime = talkTime.value;
+        callFlow.data.talkToListenRatio = talkToListenRatio.value;
+        callFlow.data.clientType = clientType.value;
+        callFlow.data.objectionPartner = objectionPartner.checked;
+        callFlow.data.objectionHadToGo = objectionHadToGo.checked;
+        callFlow.data.objectionNotInterested = objectionNotInterested.checked;
+        callFlow.data.objectionJustCurious = objectionJustCurious.checked;
+        callFlow.data.objectionSellMe = objectionSellMe.checked;
+        callFlow.data.objections = [
+          ['Partner', objectionPartner],
+          ['Had to go', objectionHadToGo],
+          ['Not interested', objectionNotInterested],
+          ['Just curious', objectionJustCurious],
+          ['Are u trying to sell me', objectionSellMe]
+        ]
+          .filter(([, checkbox]) => checkbox.checked)
+          .map(([label]) => label)
+          .join(', ');
+        callFlow.data.objectionNotes = objectionNotes.value;
+        callFlow.step = 'pitch';
+        renderCallFlow();
+      }));
     } else if (callFlow.step === 'pitch') {
-      const pitched = addSelectField(fields, 'pitched', 'Were you able to pitch?', [['', 'Select'], ['Yes', 'Yes'], ['No', 'No']]);
+      const pitched = addSelectField(fields, 'pitched', 'Pitch outcome', [['', 'Select'], ['No', 'No'], ['Low Ticket', 'Low ticket self close'], ['High Ticket', 'High ticket booking']]);
       actions.append(nextButton('Next', () => {
         callFlow.data.pitched = pitched.value;
-        callFlow.step = pitched.value === 'Yes' ? 'setting' : 'outcome';
-        renderCallFlow();
-      }));
-    } else if (callFlow.step === 'setting') {
-      const wasSet = addSelectField(fields, 'wasSet', 'Were you able to set?', [['', 'Select'], ['Yes', 'Yes'], ['No', 'No']]);
-      actions.append(nextButton('Next', () => {
-        callFlow.data.wasSet = wasSet.value;
-        callFlow.step = wasSet.value === 'Yes' ? 'appointment' : 'outcome';
-        renderCallFlow();
+        if (pitched.value === 'High Ticket') {
+          callFlow.step = 'appointment';
+          renderCallFlow();
+        } else {
+          saveCallSafely('Picked Up', callFlow.data);
+        }
       }));
     } else if (callFlow.step === 'appointment') {
-      const closer = addTextField(fields, 'closer', 'Closer');
+      const closer = addTextField(fields, 'closer', 'Closer name');
       const appointmentDate = addTextField(fields, 'appointmentDate', 'Appointment date/time', 'datetime-local');
-      addTextField(fields, 'followUpDate', 'Follow-up date', 'date');
-      addSelectField(fields, 'appointmentTimeZone', 'Appointment timezone', [
-        ['America/Denver', 'Mountain Time'], ['America/Los_Angeles', 'Pacific Time'],
-        ['America/Chicago', 'Central Time'], ['America/New_York', 'Eastern Time'], ['UTC', 'UTC']
-      ]);
-      addNotesField(fields);
       actions.append(nextButton('Save', () => {
         callFlow.data.closer = closer.value;
         callFlow.data.appointmentDate = appointmentDate.value
-          ? zonedDateTimeToDate(appointmentDate.value, fields.querySelector('.appointmentTimeZone').value).toISOString()
+          ? new Date(appointmentDate.value).toISOString()
           : '';
-        callFlow.data.followUpDate = fields.querySelector('.followUpDate').value;
-        callFlow.data.appointmentTimeZone = fields.querySelector('.appointmentTimeZone').value;
-        callFlow.data.notes = fields.querySelector('.notes').value;
-        saveCallSafely('Picked Up', callFlow.data);
-      }));
-    } else {
-      const leaveReason = addSelectField(fields, 'leaveReason', 'Conversation outcome', [['', 'Select'], ['Had to go', 'Had to go'], ['Money', 'Money'], ['Partner', 'Partner'], ['Timing', 'Timing']]);
-      const calledBack = addSelectField(fields, 'calledBack', 'Called back?', [['', 'Select'], ['Yes', 'Yes'], ['No', 'No']]);
-      addNotesField(fields);
-      actions.append(nextButton('Save', () => {
-        callFlow.data.leaveReason = leaveReason.value;
-        callFlow.data.calledBack = leaveReason.value === 'Had to go' ? calledBack.value : '';
-        callFlow.data.notes = fields.querySelector('.notes').value;
         saveCallSafely('Picked Up', callFlow.data);
       }));
     }
   }
 
-  function startCallFlow(status) {
-    callFlow = { status, step: 'qualification', data: {} };
+  function startCallFlow() {
+    callFlow = { step: 'qualification', data: {} };
     renderCallFlow();
   }
 

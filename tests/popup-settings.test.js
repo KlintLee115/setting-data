@@ -3,74 +3,45 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { getMountainDateTimeValue } = require('../scripts/timezone');
-
-global.DISPLAY_TIME_ZONE = 'America/Denver';
-global.getMountainDateTimeValue = getMountainDateTimeValue;
+const { getLocalDateTimeValue } = require('../scripts/timezone');
+global.getLocalDateTimeValue = getLocalDateTimeValue;
 global.document = {
-  getElementById(id) {
-    return this.elements[id] || null;
-  },
   querySelector(selector) {
     return this.fields[selector] || null;
   },
-  elements: {},
   fields: {}
 };
 
-const {
-  getDefaultAppointmentTimeZone,
-  getLocalDateValue,
-  getReportingTimeZone,
-  getTimeZoneDisplayName,
-  syncDefaultAppointmentTimeZone
-} = require('../scripts/popup-settings');
+const { getLocalDateValue, updateCallDateTime } = require('../scripts/popup-settings');
 
-test('formats known and custom timezone names', () => {
-  assert.equal(getTimeZoneDisplayName('America/Denver'), 'Mountain Time');
-  assert.equal(getTimeZoneDisplayName('Europe/London'), 'Europe/London');
-  assert.equal(getTimeZoneDisplayName('America/Los_Angeles'), 'Pacific Time');
+test('formats a date using the machine local calendar date', () => {
+  const date = new Date('2026-09-17T02:00:00.000Z');
+  const expected = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  assert.equal(getLocalDateValue(date), expected);
 });
 
-test('uses selected timezone values and Mountain Time fallbacks', () => {
-  document.elements['reporting-time-zone'] = { value: 'America/New_York' };
-  document.elements['default-time-zone'] = { value: '' };
+test('fills the call date field with machine-local time', () => {
+  const callDateTime = { value: '' };
+  document.fields['[name="callDateTime"]'] = callDateTime;
+  const before = new Date();
 
-  assert.equal(getReportingTimeZone(), 'America/New_York');
-  assert.equal(getDefaultAppointmentTimeZone(), 'America/Denver');
-});
+  updateCallDateTime();
 
-test('formats a date using the reporting timezone', () => {
-  document.elements['reporting-time-zone'] = { value: 'America/New_York' };
-
-  assert.equal(
-    getLocalDateValue(new Date('2026-09-17T02:00:00.000Z')),
-    '2026-09-16'
-  );
-});
-
-test('syncs the default appointment timezone into the form', () => {
-  const defaultSelect = { value: '' };
-  const appointmentTimeZone = { value: '' };
-  document.elements['default-time-zone'] = defaultSelect;
-  document.fields['[name="appointmentTimeZone"]'] = appointmentTimeZone;
-
-  syncDefaultAppointmentTimeZone();
-
-  assert.equal(defaultSelect.value, 'America/Denver');
-  assert.equal(appointmentTimeZone.value, 'America/Denver');
+  const enteredTime = new Date(callDateTime.value).getTime();
+  const earliestMinute = Math.floor(before.getTime() / 60000) * 60000;
+  const latestMinute = Math.floor(Date.now() / 60000) * 60000;
+  assert.ok(enteredTime >= earliestMinute && enteredTime <= latestMinute);
 });
 
 test('can load the settings script more than once without global redeclarations', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'popup-settings.js'), 'utf8');
   const context = vm.createContext({
-    DISPLAY_TIME_ZONE: 'America/Denver',
-    getMountainDateTimeValue,
-    Intl
+    getLocalDateTimeValue,
+    Date
   });
 
   vm.runInContext(source, context);
   vm.runInContext(source, context);
 
-  assert.equal(typeof context.popupSettings.getDefaultAppointmentTimeZone, 'function');
+  assert.equal(typeof context.popupSettings.getLocalDateValue, 'function');
 });

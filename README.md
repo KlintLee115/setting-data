@@ -10,13 +10,12 @@ The extension runs entirely in the browser. It uses `chrome.storage.local` and d
 - `Picked Up` and `No Answer` call tracking
 - Call datetime and call duration tracking
 - Manual lead-entry form with progressive workflow stages
-- Call-record JSON import from the GoHighLevel call logger
 - Draft persistence when the popup is closed
 - Edit and delete entries
 - Duplicate-call warning based on normalized lead name and call time
 - Daily summary metrics
-- Hourly pickup-rate tracker in Mountain Time
-- JSON backup and restore
+- Hourly pickup-rate tracker in local time
+- CSV export and import
 
 ## Install Locally
 
@@ -82,7 +81,7 @@ The dashboard lets you select a date and reports:
 
 ### Pickup rate
 
-For each Mountain Time hour:
+For each local-time hour:
 
 ```text
 Pickup rate = Pick Ups / Calls * 100
@@ -104,7 +103,7 @@ Set rate is calculated from the same non-disqualified group:
 Set rate = Appointments Set / Non-disqualified records * 100
 ```
 
-The frontend formats timestamps in `America/Denver` and displays `MDT` or `MST` automatically.
+The frontend uses the browser's local timezone for date entry, display, and hourly reporting. Timestamps are stored as ISO instants so they remain unambiguous across machines.
 
 ## Storage
 
@@ -140,11 +139,11 @@ The older `callLogs` and `manualEntries` keys are maintained as compatibility mi
 
 ## Backup and Restore
 
-Use **Backup JSON** to download the unified `entries` collection as a local JSON file.
+Use **Export CSV** to download the unified `entries` collection as a local CSV file, which opens in Excel and can be imported into Google Sheets.
 
-Use **Restore JSON** to load a previously created backup. The file must contain a JSON array of entry objects. Restore replaces the current unified collection after validation and reloads the popup.
+Use **Import CSV** to load a previously exported CSV file. The file must contain the exported header row. Import replaces the current unified collection after validation and reloads the popup.
 
-Keep backups somewhere secure because they may contain names, phone numbers, email addresses, and notes.
+Keep exported files somewhere secure because they may contain names, phone numbers, email addresses, and notes.
 
 ## Privacy
 
@@ -154,7 +153,7 @@ Keep backups somewhere secure because they may contain names, phone numbers, ema
 - No analytics or telemetry
 - Data stays in Chrome extension storage on the local browser profile
 
-Anyone with access to the Chrome profile may be able to access the extension data. Use JSON backups carefully because they contain potentially sensitive lead information.
+Anyone with access to the Chrome profile may be able to access the extension data. Use CSV exports carefully because they contain potentially sensitive lead information.
 
 ## Project Files
 
@@ -162,23 +161,25 @@ Anyone with access to the Chrome profile may be able to access the extension dat
 - `popup.html`: Dashboard and data-entry interface
 - `scripts/content.js`: GoHighLevel page detection, floating logger, and local call persistence
 - `scripts/popup.js`: Popup state, form handling, reporting, and editing
-- `scripts/popup-data-transfer.js`: Backup, restore, and call-record JSON import
-- `scripts/popup-settings.js`: Reporting and appointment timezone settings
-- `scripts/appointment-queue.js`: Upcoming appointment filtering, labels, and ordering
+- `scripts/popup-data-transfer.js`: CSV export and import
+- `scripts/popup-settings.js`: Local date and time helpers
 - `scripts/entry-model.js`: Entry status normalization and record shaping
 - `scripts/outcome-model.js`: Conversation outcome codes (Money, Partner, Timing, Had to go)
 - `scripts/popup-storage.js`: Chrome storage access, migration, and draft persistence
-- `scripts/queue-view.js`: Appointment queue DOM rendering and follow-up actions
 - `scripts/entry-view.js`: Entry table rendering and row actions
 - `scripts/summary-model.js`: Daily and hourly reporting calculations
-- `scripts/dom-utils.js`: Safe reusable DOM construction helpers
-- `scripts/timezone.js`: Timezone conversion and date formatting
-- `tests/`: Timezone, queue, entry-model, and content-script behavior tests
+- `scripts/timezone.js`: Local date/time conversion and formatting
+- `tests/`: Local date/time, entry-model, and content-script behavior tests
 
-Run the extension tests from this directory:
+## Development
+
+Install the development dependency and run the full check before opening a pull request:
 
 ```powershell
-node --test tests/*.test.js
+npm ci
+npm run check
 ```
 
-The TypeScript migration is staged in `src/`. The typed core currently covers entry models, outcomes, timezone utilities, appointment queues, and popup storage. Run `npm run typecheck` to validate it; the live extension continues to use the existing scripts until the browser bundle is wired.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the local workflow and manual extension smoke test.
+
+The browser extension currently loads JavaScript from `scripts/`; those files are the runtime source of truth. TypeScript in `src/` is a checked migration and is not loaded by Chrome yet. Keep equivalent behavior aligned when changing the typed modules. `npm run check` runs the test suite and TypeScript check.

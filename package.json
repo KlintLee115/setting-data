@@ -2,6 +2,8 @@
   "name": "ghl-call-log",
   "private": true,
   "scripts": {
+    "test": "node --test",
+    "check": "npm test && npm run typecheck",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

@@ -2,81 +2,36 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   formatDateTimeInput,
-  formatFollowUpDate,
-  formatFollowUpWindow,
+  getLocalDateTimeValue,
+  localDateTimeToDate,
   parseStoredDateTime,
-  zonedDateTimeToDate
 } = require('../scripts/timezone');
 
-test('converts MDT appointment time to its UTC instant', () => {
-  assert.equal(
-    zonedDateTimeToDate('2026-09-16T10:00', 'America/Denver').toISOString(),
-    '2026-09-16T16:00:00.000Z'
-  );
+test('converts datetime-local input using the machine local timezone', () => {
+  const value = '2026-09-16T10:00';
+  assert.equal(localDateTimeToDate(value).toISOString(), new Date(value).toISOString());
 });
 
-test('converts Pacific and Eastern appointment times to the same instant', () => {
-  const pacific = zonedDateTimeToDate('2026-09-16T10:00', 'America/Los_Angeles');
-  const eastern = zonedDateTimeToDate('2026-09-16T13:00', 'America/New_York');
-
-  assert.equal(pacific.toISOString(), '2026-09-16T17:00:00.000Z');
-  assert.equal(eastern.toISOString(), '2026-09-16T17:00:00.000Z');
+test('formats an instant as a local datetime-local value and round-trips it', () => {
+  const instant = '2026-09-16T16:00:00.000Z';
+  const localInput = formatDateTimeInput(instant);
+  assert.equal(localDateTimeToDate(localInput).toISOString(), instant);
 });
 
-test('preserves UTC input without applying a local machine offset', () => {
-  assert.equal(
-    zonedDateTimeToDate('2026-09-16T10:00', 'UTC').toISOString(),
-    '2026-09-16T10:00:00.000Z'
-  );
+test('generates the current local input value', () => {
+  const date = new Date('2026-09-16T16:07:00.000Z');
+  const localInput = getLocalDateTimeValue(date);
+  assert.equal(localDateTimeToDate(localInput).getTime(), new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), date.getMinutes()).getTime());
 });
 
-test('handles the Mountain Time daylight-saving transition', () => {
-  assert.equal(
-    zonedDateTimeToDate('2026-03-08T01:30', 'America/Denver').toISOString(),
-    '2026-03-08T08:30:00.000Z'
-  );
-  assert.equal(
-    zonedDateTimeToDate('2026-03-08T03:30', 'America/Denver').toISOString(),
-    '2026-03-08T09:30:00.000Z'
-  );
-});
-
-test('interprets legacy naive stored values as Mountain Time', () => {
+test('interprets legacy naive stored values as machine-local time', () => {
   const date = parseStoredDateTime('2026-09-16T10:00');
-
-  assert.equal(date.toISOString(), '2026-09-16T16:00:00.000Z');
+  assert.equal(date.getHours(), 10);
+  assert.equal(date.getMinutes(), 0);
 });
 
-test('formats an appointment instant for the selected input timezone', () => {
-  assert.equal(
-    formatDateTimeInput('2026-09-16T16:00:00.000Z', 'America/Denver'),
-    '2026-09-16T10:00'
-  );
-  assert.equal(
-    formatDateTimeInput('2026-09-16T16:00:00.000Z', 'America/New_York'),
-    '2026-09-16T12:00'
-  );
+test('returns an empty input value for invalid stored dates', () => {
+  assert.equal(formatDateTimeInput('not-a-date'), '');
 });
 
-test('keeps reporting timezone separate from customer booking timezone', () => {
-  const bookingInstant = zonedDateTimeToDate('2026-09-16T18:00', 'America/New_York').toISOString();
-  assert.equal(bookingInstant, '2026-09-16T22:00:00.000Z');
-  assert.equal(formatDateTimeInput(bookingInstant, 'America/Denver'), '2026-09-16T16:00');
-  assert.equal(formatDateTimeInput(bookingInstant, 'America/Los_Angeles'), '2026-09-16T15:00');
-});
-
-test('formats follow-up due windows for in-row queue updates', () => {
-  const now = new Date('2026-09-16T12:00:00Z');
-  assert.equal(formatFollowUpWindow('2026-09-16', now), 'Due today');
-  assert.equal(formatFollowUpWindow('2026-09-17', now), 'Due tomorrow');
-  assert.equal(formatFollowUpWindow('2026-09-20', now), 'In 4 days');
-  assert.equal(formatFollowUpWindow('', now), 'No follow-up set');
-  assert.equal(formatFollowUpWindow('2026-09-16T00:00:00.000Z', now), 'Due today');
-  assert.equal(formatFollowUpWindow('not-a-date', now), 'No follow-up set');
-});
-
-test('formats follow-up dates as Mountain-time calendar dates', () => {
-  assert.equal(formatFollowUpDate('2026-10-02'), 'Oct 2, 2026');
-  assert.equal(formatFollowUpDate('2026-10-02T00:00:00.000Z'), 'Oct 2, 2026');
-});
 

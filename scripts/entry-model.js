@@ -10,7 +10,7 @@ function normalizeEntryStatus(entry) {
   if (entry.disqualified === 'Yes') {
     return { ...entry, status: DISQUALIFIED_STATUS };
   }
-  if (entry.wasSet === 'Yes' || entry.appointmentDate) {
+  if (entry.pitched === 'High Ticket' || entry.wasSet === 'Yes' || entry.appointmentDate) {
     return { ...entry, status: BOOKED_STATUS };
   }
   if (entry.phonePickedUp === 'Yes') {

@@ -3,6 +3,8 @@ import type { LeaveReason } from './outcome';
 export type PhoneOutcome = 'Yes' | 'No' | '';
 export type YesNo = 'Yes' | 'No' | '';
 export type EntryStatus = 'Booked' | 'Picked Up' | 'No Answer' | 'Disqualified' | 'Had to go' | '';
+export type PitchOutcome = 'No' | 'Low Ticket' | 'High Ticket' | '';
+export type ClientType = 'Business Owner' | '9-5' | 'Unemployed' | '';
 
 export interface Entry {
   id?: string;
@@ -18,12 +20,16 @@ export interface Entry {
   lastTextMessage?: string;
   disqualified?: YesNo;
   disqualificationReason?: string;
-  pitched?: YesNo;
+  talkTime?: string;
+  talkToListenRatio?: string;
+  clientType?: ClientType | string;
+  objections?: string;
+  objectionNotes?: string;
+  pitched?: PitchOutcome | string;
   wasSet?: YesNo;
   closer?: string;
   appointmentDate?: string;
   followUpDate?: string;
-  appointmentTimeZone?: string;
   leaveReason?: LeaveReason | string;
   calledBack?: YesNo;
   notes?: string;
@@ -43,7 +49,7 @@ export function normalizeEntryStatus(entry: Entry): Entry {
   if (entry.disqualified === 'Yes') {
     return { ...entry, status: DISQUALIFIED_STATUS };
   }
-  if (entry.wasSet === 'Yes' || entry.appointmentDate) {
+  if (entry.pitched === 'High Ticket' || entry.wasSet === 'Yes' || entry.appointmentDate) {
     return { ...entry, status: BOOKED_STATUS };
   }
   if (entry.phonePickedUp === 'Yes') {

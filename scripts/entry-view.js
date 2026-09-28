@@ -1,4 +1,4 @@
-function renderEntryTable(body, entries, options) {
+function renderEntryTable(body, entries, options, lazyLoad = {}) {
   body.replaceChildren();
   if (!entries.length) {
     const row = document.createElement('tr');
@@ -10,7 +10,19 @@ function renderEntryTable(body, entries, options) {
     body.appendChild(row);
     return;
   }
-  entries.forEach((entry) => body.appendChild(createEntryRow(entry, options)));
+  const limit = lazyLoad.initialLimit ?? entries.length;
+  const visibleEntries = entries.slice(0, limit);
+  visibleEntries.forEach((entry) => body.appendChild(createEntryRow(entry, options)));
+  if (lazyLoad.onLoadMore && entries.length > visibleEntries.length) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.className = 'load-more';
+    cell.colSpan = 4;
+    cell.textContent = 'Load more';
+    cell.addEventListener('click', lazyLoad.onLoadMore);
+    row.appendChild(cell);
+    body.appendChild(row);
+  }
 }
 
 function createEntryRow(entry, { formatDate, formatDateTime, getStatusClass, onEdit, onDelete }) {
@@ -35,8 +47,8 @@ function createEntryRow(entry, { formatDate, formatDateTime, getStatusClass, onE
 
   const details = entry.entryType === 'Call'
     ? `Call: ${formatDateTime(entry.callDateTime || entry.pickupDateTime || entry.timestamp)} | Picked up: ${entry.phonePickedUp || '-'} | Duration: ${entry.callDuration || '-'}`
-    : `Call: ${formatDateTime(entry.callDateTime)} | Last text: ${entry.lastTextMessage || '-'} | Appt: ${formatDateTime(entry.appointmentDate)} | Closer: ${entry.closer || '-'} | Duration: ${entry.callDuration || '-'}${entry.leaveReason ? ` | Leave reason: ${entry.leaveReason}` : ''}${entry.leaveReason === 'Had to go' ? ` | Called back: ${entry.calledBack || '-'}` : ''}${entry.notes ? ` | Notes: ${entry.notes}` : ''} | Disqualified: ${entry.disqualified || '-'} | Pitched: ${entry.pitched || '-'} | Set: ${entry.wasSet || '-'}`;
-  const displayStatus = entry.leaveReason === 'Had to go' ? 'Had to go' : entry.status;
+    : `Call: ${formatDateTime(entry.callDateTime)} | Last text: ${entry.lastTextMessage || '-'} | Appt: ${formatDateTime(entry.appointmentDate)} | Closer: ${entry.closer || '-'} | Duration: ${entry.callDuration || '-'}${entry.notes ? ` | Notes: ${entry.notes}` : ''} | Disqualified: ${entry.disqualified || '-'} | Talk time: ${entry.talkTime || '-'} | Talk/listen: ${entry.talkToListenRatio || '-'} | Client type: ${entry.clientType || '-'} | Objections: ${entry.objections || '-'}${entry.objectionNotes ? ` (${entry.objectionNotes})` : ''} | Pitched: ${entry.pitched || '-'}`;
+  const displayStatus = entry.status;
   const statusClass = entry.entryType === 'Call' || entry.status
     ? `status ${getStatusClass(displayStatus)}`
     : 'cell-main';

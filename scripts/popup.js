@@ -22,22 +22,23 @@ const clearFormButton = document.getElementById('clear-form');
 const cancelEditButton = document.getElementById('cancel-edit');
 const showCallLoggerButton = document.getElementById('show-call-logger');
 const {
-  DEFAULT_TIME_ZONE_KEY,
-  REPORTING_TIME_ZONE_KEY,
-  getDefaultAppointmentTimeZone,
-  getLocalDateTimeValue,
   getLocalDateValue,
-  getReportingTimeZone,
-  getTimeZoneDisplayName,
-  loadDefaultAppointmentTimeZone,
-  syncDefaultAppointmentTimeZone,
   updateCallDateTime
 } = globalThis.popupSettings;
+
+const OBJECTION_FIELDS = [
+  ['objectionPartner', 'Partner'],
+  ['objectionHadToGo', 'Had to go'],
+  ['objectionNotInterested', 'Not interested'],
+  ['objectionJustCurious', 'Just curious'],
+  ['objectionSellMe', 'Are u trying to sell me']
+];
 
 let logs = [];
 let manualEntries = [];
 let editingEntry = null;
 let entrySort = { key: 'date', direction: 'desc' };
+let entryRenderLimit = 50;
 const popupStorage = createPopupStorage();
 
 function createEntryId() {
@@ -49,7 +50,12 @@ async function persistEntries() {
 
 function setFormValue(name, value) {
   const field = document.querySelector(`[name="${name}"]`);
-  if (field && value !== undefined) {
+  if (!field || value === undefined) {
+    return;
+  }
+  if (field.type === 'checkbox') {
+    field.checked = true;
+  } else {
     field.value = value;
   }
 }
@@ -103,8 +109,6 @@ async function restoreFormDraft() {
   Object.entries(draft).forEach(([name, value]) => {
     if (name === 'editingEntry') {
       editingEntry = value;
-    } else if (name === 'leaveReason') {
-      setFormValue(name, normalizeLeaveReason(value));
     } else {
       setFormValue(name, value);
     }
@@ -142,18 +146,18 @@ function isToday(timestamp) {
   return getLocalDateValue(date) === getLocalDateValue();
 }
 
-function formatDate(timestamp, timeZone = getReportingTimeZone()) {
+function formatDate(timestamp) {
   return new Intl.DateTimeFormat(undefined, {
-    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
   }).format(parseStoredDateTime(timestamp));
 }
 
-function formatDateTime(timestamp, timeZone = getReportingTimeZone()) {
+function formatDateTime(timestamp) {
   if (!timestamp) {
     return '-';
   }
   return new Intl.DateTimeFormat('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
   }).format(parseStoredDateTime(timestamp));
 }
 
@@ -179,11 +183,8 @@ function getHourlyCallTime(entry) {
   return parseStoredDateTime(timestamp);
 }
 
-function getMountainHour(date) {
-  return Number(new Intl.DateTimeFormat('en-US', {
-    timeZone: getReportingTimeZone(),
-    hour: 'numeric', hour12: false
-  }).format(date));
+function getLocalHour(date) {
+  return date.getHours();
 }
 
 function getDailyEntries() {
@@ -198,61 +199,14 @@ function getDailyEntries() {
   });
 }
 
-function renderAppointmentQueue() {
-  const queue = document.getElementById('appointment-queue');
-  const summaryHeading = document.getElementById('summary-timezone-heading');
-  if (summaryHeading) {
-    summaryHeading.textContent = getTimeZoneDisplayName(getReportingTimeZone());
-  }
-  if (!queue) return;
-    const queueEntries = [
-      ...logs.map((entry) => ({ ...entry, sourceType: 'call', createdAt: entry.createdAt || entry.timestamp })),
-      ...manualEntries.map((entry) => ({ ...entry, sourceType: 'manual' }))
-    ];
-    const todoItems = getTodoItems(queueEntries);
-  renderQueueView(queue, todoItems, {
-    formatDate,
-    formatDateTime,
-    formatFollowUpDate: (value) => formatFollowUpDate(value, getReportingTimeZone()),
-    formatFollowUpWindow,
-    normalizeFollowUpDateValue,
-    onSaveNotes: async (entryId, value) => {
-      const entry = queueEntries.find((candidate) => candidate.id === entryId);
-      if (!entry) return;
-      const { collection, index } = findStoredEntry(entry);
-      if (index < 0) return;
-      collection[index].notes = value;
-      collection[index] = normalizeEntryStatus(collection[index]);
-      await persistEntries();
-      render();
-    },
-    onOpen: async (entry) => {
-      if (entry.sourceUrl) {
-        await chrome.tabs.create({ url: entry.sourceUrl });
-      }
-    },
-    onCopyConfirmation: async (message) => {
-      await navigator.clipboard.writeText(message);
-    },
-    onDelete: async (entry) => {
-      await deleteEntry(entry);
-      renderAppointmentQueue();
-    },
-  });
-}
-
 function renderPickupSummary() {
-  const summaryHeading = document.getElementById('summary-timezone-heading');
-  if (summaryHeading) {
-    summaryHeading.textContent = `${getTimeZoneDisplayName(getReportingTimeZone())} time`;
-  }
   const dailyEntries = getDailyEntries();
   const entries = dailyEntries.filter((entry) => entry.entryType === 'Call'
     || ['Yes', 'No'].includes(entry.phonePickedUp));
   const summary = getDailySummary(dailyEntries, durationToSeconds);
 
   pickupSummaryBody.replaceChildren();
-  getHourlySummary(entries, (entry) => getMountainHour(getHourlyCallTime(entry))).forEach((hourly) => {
+  getHourlySummary(entries, (entry) => getLocalHour(getHourlyCallTime(entry))).forEach((hourly) => {
     const row = document.createElement('tr');
     const timeCell = document.createElement('td');
     const totalCell = document.createElement('td');
@@ -307,6 +261,10 @@ function render() {
       return entrySort.direction === 'asc' ? comparison : -comparison;
     });
 
+  if (entryRenderLimit > visibleEntries.length) {
+    entryRenderLimit = visibleEntries.length || 50;
+  }
+
   count.textContent = visibleEntries.length;
   renderEntryTable(logBody, visibleEntries.map((entry) => ({
     ...entry,
@@ -317,6 +275,12 @@ function render() {
     getStatusClass,
     onEdit: startEditing,
     onDelete: deleteEntry
+  }, {
+    initialLimit: entryRenderLimit,
+    onLoadMore: () => {
+      entryRenderLimit = Math.min(entryRenderLimit + 50, visibleEntries.length);
+      render();
+    }
   });
 }
 
@@ -327,19 +291,20 @@ async function loadLogs() {
   await persistEntries();
   render();
   renderPickupSummary();
-  renderAppointmentQueue();
 }
 
 function getEntryFormData(form) {
   const formData = new FormData(form);
   const appointmentDate = formData.get('appointmentDate');
-  const appointmentTimeZone = formData.get('appointmentTimeZone') || getDefaultAppointmentTimeZone();
-  const followUpDate = formData.get('followUpDate');
-  const wasSet = formData.get('wasSet');
+  const pitched = formData.get('pitched');
   const phonePickedUp = formData.get('phonePickedUp');
+  const objections = OBJECTION_FIELDS
+    .filter(([name]) => formData.get(name))
+    .map(([, label]) => label)
+    .join(', ');
   const normalizedStatus = formData.get('disqualified') === 'Yes'
     ? 'Disqualified'
-    : wasSet === 'Yes' || appointmentDate
+    : pitched === 'High Ticket' || appointmentDate
     ? 'Booked'
     : phonePickedUp === 'Yes'
       ? 'Picked Up'
@@ -354,16 +319,17 @@ function getEntryFormData(form) {
     callDateTime: formData.get('callDateTime'),
     callDuration: formData.get('callDuration'),
     lastTextMessage: formData.get('lastTextMessage').trim(),
-    leaveReason: normalizeLeaveReason(formData.get('leaveReason')),
-    calledBack: formData.get('calledBack'),
     disqualified: formData.get('disqualified'),
     disqualificationReason: formData.get('disqualificationReason').trim(),
-    pitched: formData.get('pitched'),
-    wasSet,
+    talkTime: formData.get('talkTime').trim(),
+    talkToListenRatio: formData.get('talkToListenRatio').trim(),
+    clientType: formData.get('clientType'),
+    objections,
+    objectionNotes: formData.get('objectionNotes').trim(),
+    pitched,
+    wasSet: pitched === 'High Ticket' ? 'Yes' : pitched ? 'No' : '',
     closer: formData.get('closer').trim(),
-    appointmentDate: appointmentDate ? zonedDateTimeToDate(appointmentDate, appointmentTimeZone).toISOString() : '',
-    followUpDate: followUpDate || '',
-    appointmentTimeZone,
+    appointmentDate: appointmentDate ? new Date(appointmentDate).toISOString() : '',
     status: normalizedStatus,
     notes: formData.get('notes').trim()
   };
@@ -387,7 +353,7 @@ function getEntryDateTime(entry) {
 function getEntrySortValue(entry, key) {
   if (key === 'date') return parseStoredDateTime(getEntryDateTime(entry)).getTime();
   if (key === 'name') return String(entry.entryType === 'Call' ? entry.name : entry.fullName || '').toLowerCase();
-  return String(entry.status || entry.leaveReason || '').toLowerCase();
+  return String(entry.status || '').toLowerCase();
 }
 
 function hasDuplicateCall(entry) {
@@ -422,21 +388,20 @@ function findStoredEntry(target) {
 function startEditing(entry) {
   editingEntry = { sourceType: entry.sourceType, id: entry.id };
   const values = entry.entryType === 'Call'
-    ? { ...entry, fullName: entry.name, phonePickedUp: entry.status === 'Picked Up' ? 'Yes' : 'No', wasSet: entry.wasSet || '' }
+    ? { ...entry, fullName: entry.name, phonePickedUp: entry.status === 'Picked Up' ? 'Yes' : 'No' }
     : { ...entry };
   if (values.appointmentDate) {
-    values.appointmentTimeZone = values.appointmentTimeZone || getDefaultAppointmentTimeZone();
-    values.appointmentDate = formatDateTimeInput(values.appointmentDate, values.appointmentTimeZone);
+    values.appointmentDate = formatDateTimeInput(values.appointmentDate);
   }
-  if (values.followUpDate) {
-    values.followUpDate = values.followUpDate.slice(0, 10);
-  }
-  values.leaveReason = normalizeLeaveReason(values.leaveReason);
   Object.entries(values).forEach(([name, value]) => {
     if (['entryType', 'sourceType', 'sourceIndex', 'recordType', 'createdAt', 'timestamp'].includes(name)) {
       return;
     }
     setFormValue(name, value);
+  });
+  const selectedObjections = String(values.objections || '').split(',').map((value) => value.trim()).filter(Boolean);
+  document.querySelectorAll('#manual-entry-form [data-objection]').forEach((checkbox) => {
+    checkbox.checked = selectedObjections.includes(checkbox.value);
   });
   updateConditionalFields();
   saveEntryButton.textContent = 'Save changes';
@@ -450,7 +415,6 @@ function startEditing(entry) {
 function resetEntryForm() {
   editingEntry = null;
   document.getElementById('manual-entry-form').reset();
-  syncDefaultAppointmentTimeZone();
   importStatus.textContent = '';
   saveEntryButton.textContent = 'Save entry';
   clearFormButton.hidden = false;
@@ -520,7 +484,7 @@ document.getElementById('manual-entry-form').addEventListener('submit', async (e
     }
     await persistEntries();
   } else {
-    const resolvedStatus = entry.wasSet === 'Yes'
+    const resolvedStatus = entry.pitched === 'High Ticket'
       ? 'Booked'
       : entry.phonePickedUp === 'Yes' ? 'Picked Up' : entry.phonePickedUp === 'No' ? 'No Answer' : '';
     manualEntries.push({
@@ -535,7 +499,6 @@ document.getElementById('manual-entry-form').addEventListener('submit', async (e
   resetEntryForm();
   render();
   renderPickupSummary();
-  renderAppointmentQueue();
 });
 
 function updateConditionalFields() {
@@ -551,52 +514,25 @@ function updateConditionalFields() {
       clearFieldValues(field);
     }
   });
-  updateConversationOutcomeVisibility();
+  updatePitchFieldRequirements();
 }
 
 function clearFieldValues(container) {
   container.querySelectorAll('input, select, textarea').forEach((control) => {
-    control.value = '';
+    if (control.type === 'checkbox') {
+      control.checked = false;
+    } else {
+      control.value = '';
+    }
   });
 }
 
-function updateConversationOutcomeVisibility() {
-  const outcome = document.getElementById('conversation-outcome');
-  const phonePickedUp = document.getElementById('phone-picked-up').value;
-  const disqualified = document.getElementById('disqualified').value;
+function updatePitchFieldRequirements() {
   const pitched = document.getElementById('pitched').value;
-  const wasSet = document.getElementById('was-set').value;
-  const reachedBadOutcome = disqualified !== 'Yes' && (pitched === 'No' || wasSet === 'No');
-  const settingStage = document.querySelector('[data-show-when="phone-picked-up=Yes&disqualified=No&pitched=Yes"]');
-  const settingVisible = settingStage?.style.display !== 'none';
-  outcome.style.display = phonePickedUp === 'Yes' && reachedBadOutcome ? 'grid' : 'none';
-  if (outcome.style.display === 'none') {
-    clearFieldValues(outcome);
-  }
-  document.querySelector('[name="leaveReason"]').required = outcome.style.display === 'grid';
-  document.querySelector('[name="closer"]').required = settingVisible && wasSet === 'Yes';
-  document.querySelector('[name="appointmentDate"]').required = settingVisible && wasSet === 'Yes';
-  document.querySelector('[name="appointmentTimeZone"]').required = settingVisible && wasSet === 'Yes';
+  const highTicket = pitched === 'High Ticket';
+  document.querySelector('[name="closer"]').required = highTicket;
+  document.querySelector('[name="appointmentDate"]').required = highTicket;
 }
-
-document.getElementById('reporting-time-zone').addEventListener('change', async () => {
-  const value = document.getElementById('reporting-time-zone').value;
-  await chrome.storage.local.set({ [REPORTING_TIME_ZONE_KEY]: value });
-  render();
-  renderPickupSummary();
-  renderAppointmentQueue();
-  saveFormDraft();
-});
-
-document.getElementById('default-time-zone').addEventListener('change', async () => {
-  const value = document.getElementById('default-time-zone').value;
-  const appointmentTimeZone = document.querySelector('[name="appointmentTimeZone"]');
-  if (appointmentTimeZone && !appointmentTimeZone.value) {
-    appointmentTimeZone.value = value;
-  }
-  await chrome.storage.local.set({ [DEFAULT_TIME_ZONE_KEY]: value });
-  saveFormDraft();
-});
 
 document.querySelectorAll('#manual-entry-form select').forEach((select) => {
   select.addEventListener('change', () => {
@@ -604,7 +540,7 @@ document.querySelectorAll('#manual-entry-form select').forEach((select) => {
     saveFormDraft();
   });
 });
-globalThis.setupPopupDataTransfer({ importStatus, saveFormDraft, setFormValue, updateConditionalFields });
+globalThis.setupPopupDataTransfer();
 showCallLoggerButton.addEventListener('click', showCallLogger);
 clearFormButton.addEventListener('click', async () => {
   await popupStorage.clearDraft();
@@ -619,6 +555,7 @@ updateConditionalFields();
 updateCallDateTime();
 
 dateFilter.addEventListener('change', () => {
+  entryRenderLimit = 50;
   render();
 });
 summaryDate.value = getLocalDateValue();
@@ -629,16 +566,13 @@ document.querySelectorAll('[data-sort]').forEach((button) => {
     entrySort = entrySort.key === key
       ? { key, direction: entrySort.direction === 'asc' ? 'desc' : 'asc' }
       : { key, direction: key === 'date' ? 'desc' : 'asc' };
+    entryRenderLimit = 50;
     render();
   });
 });
-loadDefaultAppointmentTimeZone()
-  .then(restoreFormDraft)
+restoreFormDraft()
   .then(restorePendingLead)
   .then(loadLogs)
-  .then(() => {
-    renderAppointmentQueue();
-  })
   .catch((error) => {
     console.error('Could not initialize popup:', error);
     importStatus.textContent = 'Could not load saved data. Reload the extension and try again.';
