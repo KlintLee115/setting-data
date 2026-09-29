@@ -9,6 +9,10 @@ test('builds an analysis-friendly workbook with typed dates and separate objecti
   const workbook = buildWorkbook([{
     recordType: 'entry',
     fullName: 'Jane Doe',
+    leadTimeZone: 'GMT-7',
+    contactHistory: 'Contacted before',
+    phonePickedUp: 'Yes',
+    disqualified: 'No',
     status: 'Booked',
     callDateTime: '2026-09-28T14:30:00.000Z',
     callDuration: '02:15',
@@ -23,8 +27,10 @@ test('builds an analysis-friendly workbook with typed dates and separate objecti
   const row = rows[1];
   const column = (header) => headers.indexOf(header);
 
-  assert.deepEqual(workbook.SheetNames, ['Entries']);
+  assert.deepEqual(workbook.SheetNames, ['Analysis', 'Entries']);
   assert.equal(row[column('Lead name')], 'Jane Doe');
+  assert.equal(row[column('Lead timezone')], 'GMT-7');
+  assert.equal(row[column('Contact history')], 'Contacted before');
   assert.equal(row[column('Call duration (seconds)')], 135);
   assert.equal(row[column('Talk time (seconds)')], 65);
   assert.equal(row[column('Objection: Partner')], true);
@@ -34,12 +40,21 @@ test('builds an analysis-friendly workbook with typed dates and separate objecti
   assert.equal(sheet[XLSX.utils.encode_cell({ r: 1, c: column('Call date/time') })].t, 'd');
 
   const fileBytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-  const reopened = XLSX.read(fileBytes, { type: 'buffer', cellDates: true });
+  const reopened = XLSX.read(fileBytes, { type: 'buffer', cellDates: true, cellNF: true });
   const reopenedSheet = reopened.Sheets.Entries;
   const reopenedRows = XLSX.utils.sheet_to_json(reopenedSheet, { header: 1 });
   assert.equal(reopenedRows[1][column('Call duration (seconds)')], 135);
   assert.equal(reopenedRows[1][column('Objection: Partner')], true);
-  assert.equal(reopenedSheet['!autofilter'].ref, 'A1:Y2');
+ assert.equal(reopenedSheet['!autofilter'].ref, 'A1:AC2');
+
+  const analysis = reopened.Sheets.Analysis;
+  assert.equal(analysis.B5.f, 'COUNTIF(Entries!$J:$J,"Yes")+COUNTIF(Entries!$J:$J,"No")');
+  assert.equal(analysis.C6.f, 'IF(B5=0,"",B6/B5)');
+  assert.equal(analysis.C6.z, '0.0%');
+  assert.equal(analysis.A20.v, 'GMT-7');
+  assert.equal(analysis.B20.f, 'COUNTIFS(Entries!$E:$E,"GMT-7",Entries!$J:$J,"Yes")+COUNTIFS(Entries!$E:$E,"GMT-7",Entries!$J:$J,"No")');
+  assert.equal(analysis.A21.v, 'Not recorded');
+  assert.equal(analysis.A22, undefined);
 });
 
 test('converts supported duration values to seconds', () => {

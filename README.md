@@ -49,7 +49,7 @@ The call logger captures:
 
 The popup supports these progressive stages:
 
-1. Lead information: name, email, phone
+1. Lead information: name, email, phone, lead timezone, and contact history (first touch or contacted before)
 2. Phone: pickup outcome, call datetime, duration, or last text message for no-answer calls
 3. Qualification: disqualified status and reason
 4. Call details: talk time, talk-to-listen ratio, client type, and objection checkboxes with optional notes
@@ -70,6 +70,8 @@ The primary unified collection. Each record has a stable `id` and may include:
 - `fullName` or `name`
 - `email`
 - `phone`
+- `leadTimeZone` (selected GMT offset from `GMT-12` through `GMT+14`)
+- `contactHistory` (`First touch` or `Contacted before`)
 - `phonePickedUp`
 - `callDateTime`
 - `callDuration`
@@ -88,7 +90,7 @@ The primary unified collection. Each record has a stable `id` and may include:
 
 The older `callLogs` and `manualEntries` keys are maintained as compatibility mirrors for existing data and content-script behavior.
 
-This extension intentionally does not compute outcome rates or summaries — export to XLSX and analyze in Excel/Google Sheets instead.
+The popup does not compute outcome rates or summaries; the XLSX export includes a formula-driven Analysis sheet for the call funnel and breakdowns by contact history and lead timezone.
 
 ### Drafts
 
@@ -96,7 +98,7 @@ This extension intentionally does not compute outcome rates or summaries — exp
 
 ## Export
 
-Use **Export XLSX** to download the unified `entries` collection as a local Excel workbook. The `Entries` sheet has typed date/time values, durations in seconds, individual boolean columns for each objection, filterable headers, and analysis-friendly column widths.
+Use **Export XLSX** to download the unified `entries` collection as a local Excel workbook. The `Analysis` sheet summarizes the call funnel and compares results by contact history and recorded lead timezone. Rates show their denominator, stay blank when there is no eligible data, and should be interpreted with sample size in mind. Only timezones present in the export are listed. The `Entries` sheet contains the underlying data, typed date/time values, objection flags, and filterable headers. Analysis formulas recalculate when entries are edited in Excel.
 
 Keep exported files somewhere secure because they may contain names, phone numbers, email addresses, and notes.
 
@@ -136,4 +138,4 @@ npm run check
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the local workflow and manual extension smoke test.
 
-The browser extension currently loads JavaScript from `scripts/`; those files are the runtime source of truth. TypeScript in `src/` is a checked migration and is not loaded by Chrome yet. Keep equivalent behavior aligned when changing the typed modules. `npm run check` runs the test suite and TypeScript check.
+The browser extension loads JavaScript from `scripts/`. `npm run check` runs the test suite.

@@ -3,6 +3,13 @@
   const POLL_INTERVAL = 750;
   const STORAGE_RETRY_DELAYS = [250, 1000];
   const PENDING_LEAD_KEY = 'pendingLead';
+  const LEAD_TIME_ZONE_OPTIONS = [
+    ['', 'Select'],
+    ...Array.from({ length: 27 }, (_, index) => {
+      const offset = index - 12;
+      return [offset === 0 ? 'GMT' : `GMT${offset > 0 ? '+' : ''}${offset}`, offset === 0 ? 'GMT' : `GMT${offset > 0 ? '+' : ''}${offset}`];
+    })
+  ];
   const headerSelectors = [
     '[data-testid="CENTRALPANEL_NAME"]',
     '[data-testid="CONTACT_NAME"]',
@@ -260,6 +267,8 @@
       return;
     }
     if (callFlow.step === 'message-choice') {
+      const leadTimeZone = addSelectField(fields, 'leadTimeZone', 'Lead timezone', LEAD_TIME_ZONE_OPTIONS);
+      const contactHistory = addSelectField(fields, 'contactHistory', 'Contact history', [['', 'Select'], ['First touch', 'First touch'], ['Contacted before', 'Contacted before']]);
       const heading = document.createElement('div');
       heading.textContent = 'Which message do you want to use?';
       heading.className = 'message-choice-heading';
@@ -281,13 +290,20 @@
         fields.appendChild(choice);
         actions.append(nextButton(label, () => {
           const lastTextMessage = fillNoAnswerMessage(variant);
-          saveCallSafely('No Answer', { lastTextMessage });
+          saveCallSafely('No Answer', { leadTimeZone: leadTimeZone.value, contactHistory: contactHistory.value, lastTextMessage });
         }));
       });
-      actions.append(nextButton('Leave blank', () => saveCallSafely('No Answer')));
+      actions.append(nextButton('Leave blank', () => saveCallSafely('No Answer', {
+        leadTimeZone: leadTimeZone.value,
+        contactHistory: contactHistory.value
+      })));
     } else if (callFlow.step === 'qualification') {
+      const leadTimeZone = addSelectField(fields, 'leadTimeZone', 'Lead timezone', LEAD_TIME_ZONE_OPTIONS);
+      const contactHistory = addSelectField(fields, 'contactHistory', 'Contact history', [['', 'Select'], ['First touch', 'First touch'], ['Contacted before', 'Contacted before']]);
       const disqualified = addSelectField(fields, 'disqualified', 'Disqualified?', [['', 'Select'], ['Yes', 'Yes'], ['No', 'No']]);
       actions.append(nextButton('Next', () => {
+        callFlow.data.leadTimeZone = leadTimeZone.value;
+        callFlow.data.contactHistory = contactHistory.value;
         callFlow.data.disqualified = disqualified.value;
         callFlow.step = disqualified.value === 'Yes' ? 'disqualification' : 'details';
         renderCallFlow();

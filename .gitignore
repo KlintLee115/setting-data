@@ -1,11 +1,6 @@
 # Dependencies
 node_modules/
 
-# TypeScript build artifacts
-dist/
-build/
-*.tsbuildinfo
-
 # Test coverage
 coverage/
 

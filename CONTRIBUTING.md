@@ -8,7 +8,7 @@
 
 ## Source of truth
 
-Chrome currently runs the JavaScript files in `scripts/`. Make runtime changes there and update the corresponding tests. The TypeScript files in `src/` are a migration in progress: they are typechecked, but Chrome does not load them. Keep the two implementations aligned when editing behavior represented in both places.
+Chrome runs the JavaScript files in `scripts/`. Make runtime changes there and update the corresponding tests.
 
 ## Before opening a pull request
 

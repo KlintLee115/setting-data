@@ -219,6 +219,8 @@ function getEntryFormData(form) {
     fullName: formData.get('fullName').trim(),
     email: formData.get('email').trim(),
     phone: formData.get('phone').trim(),
+    leadTimeZone: formData.get('leadTimeZone').trim(),
+    contactHistory: formData.get('contactHistory'),
     phonePickedUp,
     callDateTime: formData.get('callDateTime'),
     callDuration: formData.get('callDuration'),

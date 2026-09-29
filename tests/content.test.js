@@ -294,11 +294,15 @@ test('can save a no-answer call without leaving a text message', async () => {
   const logger = loadContentScript();
 
   logger.clickNoAnswer();
+  logger.field('leadTimeZone').value = 'America/New_York';
+  logger.field('contactHistory').value = 'Contacted before';
   logger.clickAction(4);
   await flushPromises();
 
   const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
   assert.equal(saved.status, 'No Answer');
+  assert.equal(saved.leadTimeZone, 'America/New_York');
+  assert.equal(saved.contactHistory, 'Contacted before');
   assert.equal(saved.lastTextMessage, undefined);
   assert.equal(logger.composer.value, '');
 });
@@ -317,6 +321,8 @@ test('picked-up follows the form flow and saves appointment details', async () =
   const logger = loadContentScript();
 
   logger.clickPickedUp();
+  logger.field('leadTimeZone').value = 'America/Los_Angeles';
+  logger.field('contactHistory').value = 'First touch';
   logger.field('disqualified').value = 'No';
   logger.clickAction();
   logger.field('talkTime').value = '5:00';
@@ -335,6 +341,8 @@ test('picked-up follows the form flow and saves appointment details', async () =
 
   const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
   assert.equal(saved.disqualified, 'No');
+  assert.equal(saved.leadTimeZone, 'America/Los_Angeles');
+  assert.equal(saved.contactHistory, 'First touch');
   assert.equal(saved.talkTime, '5:00');
   assert.equal(saved.talkToListenRatio, '70/30');
   assert.equal(saved.clientType, 'Business Owner');

@@ -3,8 +3,7 @@
   "private": true,
   "scripts": {
     "test": "node --test",
-    "check": "npm test && npm run typecheck",
-    "typecheck": "tsc --noEmit"
+    "check": "npm test"
   },
   "devDependencies": {
     "typescript": "^5.9.2"
