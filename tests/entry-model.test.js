@@ -35,3 +35,10 @@ test('combined entries preserve source record types', () => {
   assert.equal(toCallEntry(logs[0]).recordType, 'call');
   assert.equal(toManualEntry(manualEntries[0]).recordType, 'entry');
 });
+
+test('normalizes DM outcomes without converting DMs into manual call entries', () => {
+  const entry = toManualEntry({ recordType: 'dm', dmOutcome: 'Replied' });
+
+  assert.equal(entry.recordType, 'dm');
+  assert.equal(entry.status, 'Replied');
+});

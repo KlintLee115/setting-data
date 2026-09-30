@@ -11,9 +11,17 @@ function updateCallDateTime() {
   }
 }
 
+function updateDmDateTime() {
+  const dmDateTime = document.querySelector('[name="dmDateTime"]');
+  if (!dmDateTime.value) {
+    dmDateTime.value = getLocalDateTimeValue();
+  }
+}
+
 const popupSettings = {
   getLocalDateTimeValue,
   getLocalDateValue,
+  updateDmDateTime,
   updateCallDateTime
 };
 

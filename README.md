@@ -1,13 +1,14 @@
 # GHL Call Log
 
-A local Google Chrome Manifest V3 extension for logging GoHighLevel conversations and call outcomes as structured data entries.
+A local Google Chrome Manifest V3 extension for logging GoHighLevel calls and direct-message outreach as structured data entries.
 
 The extension runs entirely in the browser. It uses `chrome.storage.local` and does not require external servers, a database, GoHighLevel API permissions, or AI services.
 
 ## Features
 
-- Floating call logger inside GoHighLevel
+- Floating outreach logger inside GoHighLevel with separate call and DM flows
 - `Picked Up` and `No Answer` call tracking
+- DM channel, sent message, and outreach outcome tracking
 - Call datetime and call duration tracking
 - Manual lead-entry form with progressive workflow stages
 - Draft persistence when the popup is closed
@@ -36,7 +37,7 @@ After changing extension files, click **Reload** on the extension page and refre
 
 ### GHL call logging
 
-When a conversation is open in GoHighLevel, the content script detects the lead name and displays a floating logger. Selecting `Picked Up` or `No Answer` stores a call record locally.
+When a conversation is open in GoHighLevel, the content script detects the lead name and displays a floating logger. The existing `Picked Up` and `No Answer` actions continue to store call records. `Log DM` opens a separate flow that records channel, message, and outcome (`Sent`, `Replied`, `Qualified`, or `Booked`) as a DM record.
 
 The call logger captures:
 
@@ -47,7 +48,7 @@ The call logger captures:
 
 ### Manual entries
 
-The popup supports these progressive stages:
+The popup supports a Call/DM selector. Call entries retain the existing progressive stages:
 
 1. Lead information: name, email, phone, lead timezone, and contact history (first touch or contacted before)
 2. Phone: pickup outcome, call datetime, duration, or last text message for no-answer calls
@@ -56,7 +57,7 @@ The popup supports these progressive stages:
 5. Pitch: No / Low ticket self close / High ticket booking (High ticket also asks for closer name and appointment date/time)
 6. Notes
 
-The form hides stages that do not apply. For example, qualification is not shown until a lead picks up, and call details/pitch are not shown for disqualified leads.
+The form hides stages that do not apply. For example, qualification is not shown until a lead picks up, and call details/pitch are not shown for disqualified leads. The DM flow records channel, outcome, date/time, and message independently of call fields.
 
 ## Storage
 

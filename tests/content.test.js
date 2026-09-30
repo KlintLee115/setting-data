@@ -135,10 +135,12 @@ function loadContentScript(storageGetError, storageSetError, composerMode = 'tex
   return {
     clickNoAnswer: () => actions.children[1].click(),
     clickPickedUp: () => actions.children[0].click(),
+    clickDm: () => actions.children[2].click(),
     clickCancel: () => cancelButton.click(),
     actionCount: () => actions.children.length,
     showCallLogger: () => new Promise((resolve) => messageListener({ type: 'show-call-logger' }, {}, resolve)),
     clickAction: (index = 0) => actions.children[index].click(),
+      actionLabels: () => actions.children.map((action) => action.textContent),
     field: (className) => fields.children
       .map((label) => label.children.find((child) => child.className === className))
       .find(Boolean),
@@ -212,7 +214,7 @@ test('fills the no-answer follow-up message for the lead', () => {
 
   assert.equal(logger.composer.value, `Hey Jane, Klint here from Alicia's team (not AI, I promise 😂)
 
-Saw you recently registefred for our AI Business summit... Just to see if I can help u get more out of it
+Just hopped off a few meetings and saw you just registered for our AI Business Summit... Just to see if I can help you get more out of it
 
 Are you looking to implement AI with your current biz or are you just starting out with AI biz?`);
   assert.deepEqual(logger.composer.events.map((event) => event.type), ['input', 'change']);
@@ -267,7 +269,7 @@ test('saves the current GHL page URL with the call record', async () => {
   assert.equal(saved.sourceUrl, 'https://app.gohighlevel.com/conversations');
 });
 
-test('offers VIP, form, standard, and Build It Launch It no-answer messages before saving', async () => {
+test('offers a follow-up, form, standard, and Build It Launch It no-answer messages before saving', async () => {
   const logger = loadContentScript();
 
   logger.clickNoAnswer();
@@ -277,7 +279,7 @@ test('offers VIP, form, standard, and Build It Launch It no-answer messages befo
   logger.clickAction();
   await flushPromises();
 
-  assert.match(logger.composer.value, /and even upgraded to VIP/);
+  assert.equal(logger.composer.value, 'Hey Jane, did u get my msg?');
   assert.equal(logger.storageCalls.at(-1)[0].entries.at(-1).lastTextMessage, logger.composer.value);
 });
 
@@ -315,6 +317,36 @@ test('picked-up opens the qualification step before saving', async () => {
 
   assert.equal(actionCount(), 1);
   assert.equal(storageCalls.length, 1);
+});
+
+test('logs a DM as a separate activity without call-only fields', async () => {
+  const logger = loadContentScript();
+
+  logger.clickDm();
+  assert.deepEqual(logger.field('dmChannel').children.map((option) => option.value), ['', 'iMessage', 'SMS']);
+  logger.field('dmChannel').value = 'iMessage';
+  logger.field('dmOutcome').value = 'Sent';
+  assert.deepEqual(logger.actionLabels(), [
+    'Use follow-up message',
+    'Use standard message',
+    'Use certification form message',
+    'Use Build It Launch It message',
+    'Save DM'
+  ]);
+  logger.clickAction(0);
+  assert.equal(logger.field('dmMessage').value, logger.composer.value);
+  logger.clickAction(4);
+  await flushPromises();
+
+  const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
+  assert.equal(saved.recordType, 'dm');
+  assert.equal(saved.name, 'Jane Doe');
+  assert.equal(saved.dmChannel, 'iMessage');
+  assert.equal(saved.dmMessage, 'Hey Jane, did u get my msg?');
+  assert.equal(saved.dmOutcome, 'Sent');
+  assert.equal(saved.status, 'Sent');
+  assert.equal(saved.phonePickedUp, undefined);
+  assert.equal(saved.callDateTime, undefined);
 });
 
 test('picked-up follows the form flow and saves appointment details', async () => {

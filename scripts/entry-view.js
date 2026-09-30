@@ -32,7 +32,7 @@ function createEntryRow(entry, { formatDate, formatDateTime, getStatusClass, onE
   const statusCell = document.createElement('td');
   const actionsCell = document.createElement('td');
   const dateStack = createStack('cell-stack', createText('span', 'cell-main', formatDate(entry.dateTime)));
-  const name = entry.entryType === 'Call' ? entry.name : entry.fullName;
+  const name = entry.name || entry.fullName;
   const nameElement = createText('span', 'cell-main', name);
   if (entry.sourceUrl) {
     const link = document.createElement('a');
@@ -47,7 +47,9 @@ function createEntryRow(entry, { formatDate, formatDateTime, getStatusClass, onE
 
   const details = entry.entryType === 'Call'
     ? `Call: ${formatDateTime(entry.callDateTime || entry.pickupDateTime || entry.timestamp)} | Picked up: ${entry.phonePickedUp || '-'} | Duration: ${entry.callDuration || '-'}`
-    : `Call: ${formatDateTime(entry.callDateTime)} | Last text: ${entry.lastTextMessage || '-'} | Appt: ${formatDateTime(entry.appointmentDate)} | Closer: ${entry.closer || '-'} | Duration: ${entry.callDuration || '-'}${entry.notes ? ` | Notes: ${entry.notes}` : ''} | Disqualified: ${entry.disqualified || '-'} | Talk time: ${entry.talkTime || '-'} | Talk/listen: ${entry.talkToListenRatio || '-'} | Client type: ${entry.clientType || '-'} | Objections: ${entry.objections || '-'}${entry.objectionNotes ? ` (${entry.objectionNotes})` : ''} | Pitched: ${entry.pitched || '-'}`;
+    : entry.entryType === 'DM'
+      ? `DM: ${entry.dmChannel || '-'} | Outcome: ${entry.dmOutcome || entry.status || 'Sent'} | Sent: ${formatDateTime(entry.dmDateTime || entry.createdAt)} | Message: ${entry.dmMessage || '-'}${entry.notes ? ` | Notes: ${entry.notes}` : ''}`
+      : `Call: ${formatDateTime(entry.callDateTime)} | Last text: ${entry.lastTextMessage || '-'} | Appt: ${formatDateTime(entry.appointmentDate)} | Closer: ${entry.closer || '-'} | Duration: ${entry.callDuration || '-'}${entry.notes ? ` | Notes: ${entry.notes}` : ''} | Disqualified: ${entry.disqualified || '-'} | Talk time: ${entry.talkTime || '-'} | Talk/listen: ${entry.talkToListenRatio || '-'} | Client type: ${entry.clientType || '-'} | Objections: ${entry.objections || '-'}${entry.objectionNotes ? ` (${entry.objectionNotes})` : ''} | Pitched: ${entry.pitched || '-'}`;
   const displayStatus = entry.status;
   const statusClass = entry.entryType === 'Call' || entry.status
     ? `status ${getStatusClass(displayStatus)}`

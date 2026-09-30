@@ -10,6 +10,12 @@
       return [offset === 0 ? 'GMT' : `GMT${offset > 0 ? '+' : ''}${offset}`, offset === 0 ? 'GMT' : `GMT${offset > 0 ? '+' : ''}${offset}`];
     })
   ];
+  const MESSAGE_VARIANTS = [
+    ['followup', 'Use follow-up message'],
+    ['standard', 'Use standard message'],
+    ['form', 'Use certification form message'],
+    ['build', 'Use Build It Launch It message']
+  ];
   const headerSelectors = [
     '[data-testid="CENTRALPANEL_NAME"]',
     '[data-testid="CONTACT_NAME"]',
@@ -91,16 +97,19 @@
 
   function getNoAnswerMessage(variant) {
     const firstName = currentName.trim().split(/\s+/)[0] || 'there';
-    const eventLine = {
-      vip: 'Saw you recently registefred for our AI Business summit and even upgraded to VIP! Just to see if I can help u get more out of it',
-      form: 'Saw you recently filled out the form for our AI Consultancy Certification... Just to see if I can help u get more out of it',
-      standard: 'Saw you recently registefred for our AI Business summit... Just to see if I can help u get more out of it',
-      build: 'Saw you recently registefred for our Build It Launch It event... Just to see if I can help u get more out of it'
-    }[variant];
-    if (variant === 'build') {
-      return `Hey ${firstName}, Klint here from Alicia's team (not AI, I promise 😂)\n\n${eventLine}\n\nAre you looking to build an app for your business, or what is it for?`;
+    if (variant === 'followup') {
+      return `Hey ${firstName}, Klint here from Alicia Lyttle's AI team, did u get my msg?`;
     }
-    return `Hey ${firstName}, Klint here from Alicia's team (not AI, I promise 😂)\n\n${eventLine || 'Saw you recently registefred for our AI Business summit... Just to see if I can help u get more out of it'}\n\nAre you looking to implement AI with your current biz or are you just starting out with AI biz?`;
+    const eventLine = {
+      form: 'I saw that you filled out the form for the AI Consultancy Certification.',
+      standard: 'I saw that you registered for the AI Marketing Summit.',
+      build: 'I saw that you signed up for the Build It Launch It challenge.'
+    }[variant];
+    const baseMessage = `Hey ${firstName}, this is Klint with Alicia Lyttle's AI team. I just got off a few meetings and ${eventLine}\n\n Just to see if I can get you more out of it as we have a ton of resources, are you looking to implement AI in your business, or are you trying to get into AI?`;
+    if (variant === 'build') {
+      return baseMessage;
+    }
+    return baseMessage;
   }
 
   function fillNoAnswerMessage(variant) {
@@ -134,6 +143,19 @@
         setOverlayMessage(isExtensionContextError(error)
           ? 'Extension reloaded. Refresh this tab, then try again.'
           : 'Could not save call. Try again.');
+      });
+  }
+
+  function saveDmSafely(details = {}) {
+    void Promise.resolve()
+      .then(() => saveDm(details))
+      .catch((error) => {
+        if (!isExtensionContextError(error)) {
+          console.error('Could not save DM:', error);
+        }
+        setOverlayMessage(isExtensionContextError(error)
+          ? 'Extension reloaded. Refresh this tab, then try again.'
+          : 'Could not save DM. Try again.');
       });
   }
 
@@ -249,6 +271,24 @@
     return button;
   }
 
+  function addMessageChoice(fields, variant, label, onChoose) {
+    const message = getNoAnswerMessage(variant);
+    const choice = document.createElement('div');
+    choice.className = 'message-choice';
+    const preview = document.createElement('div');
+    preview.className = 'message-preview';
+    preview.textContent = `${message.slice(0, 135)}...`;
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = 'Read full message...';
+    const fullMessage = document.createElement('div');
+    fullMessage.textContent = message;
+    details.append(summary, fullMessage);
+    choice.append(preview, details);
+    fields.appendChild(choice);
+    return nextButton(label, () => onChoose(message));
+  }
+
   function renderCallFlow() {
     if (!host) return;
     const fields = host.shadowRoot.querySelector('.fields');
@@ -263,32 +303,50 @@
         renderCallFlow();
       });
       noAnswer.className = 'no-answer';
-      actions.append(pickedUp, noAnswer);
+      const logDm = nextButton('Log DM', () => {
+        callFlow = { step: 'dm', data: {} };
+        renderCallFlow();
+      });
+      actions.append(pickedUp, noAnswer, logDm);
       return;
     }
-    if (callFlow.step === 'message-choice') {
+    if (callFlow.step === 'dm') {
+      const channel = addSelectField(fields, 'dmChannel', 'Channel', [
+        ['', 'Select'],
+        ['iMessage', 'iMessage'],
+        ['SMS', 'SMS']
+      ]);
+      const message = createField('textarea', 'dmMessage', 'Message sent');
+      message.field.value = callFlow.data.dmMessage || '';
+      fields.appendChild(message.label);
+      MESSAGE_VARIANTS.forEach(([variant, label]) => {
+        actions.append(addMessageChoice(fields, variant, label, () => {
+          message.field.value = fillNoAnswerMessage(variant);
+        }));
+      });
+      const outcome = addSelectField(fields, 'dmOutcome', 'Outcome', [
+        ['Sent', 'Sent'],
+        ['Replied', 'Replied'],
+        ['Qualified', 'Qualified'],
+        ['Booked', 'Booked']
+      ]);
+      outcome.value = callFlow.data.dmOutcome || 'Sent';
+      actions.append(nextButton('Save DM', () => {
+        saveDmSafely({
+          dmChannel: channel.value,
+          dmMessage: message.field.value,
+          dmOutcome: outcome.value
+        });
+      }));
+    } else if (callFlow.step === 'message-choice') {
       const leadTimeZone = addSelectField(fields, 'leadTimeZone', 'Lead timezone', LEAD_TIME_ZONE_OPTIONS);
       const contactHistory = addSelectField(fields, 'contactHistory', 'Contact history', [['', 'Select'], ['First touch', 'First touch'], ['Contacted before', 'Contacted before']]);
       const heading = document.createElement('div');
       heading.textContent = 'Which message do you want to use?';
       heading.className = 'message-choice-heading';
       fields.appendChild(heading);
-      [['vip', 'Use VIP message'], ['standard', 'Use standard message'], ['form', 'Use certification form message'], ['build', 'Use Build It Launch It message']].forEach(([variant, label]) => {
-        const message = getNoAnswerMessage(variant);
-        const choice = document.createElement('div');
-        choice.className = 'message-choice';
-        const preview = document.createElement('div');
-        preview.className = 'message-preview';
-        preview.textContent = `${message.slice(0, 135)}...`;
-        const details = document.createElement('details');
-        const summary = document.createElement('summary');
-        summary.textContent = 'Read full message...';
-        const fullMessage = document.createElement('div');
-        fullMessage.textContent = message;
-        details.append(summary, fullMessage);
-        choice.append(preview, details);
-        fields.appendChild(choice);
-        actions.append(nextButton(label, () => {
+      MESSAGE_VARIANTS.forEach(([variant, label]) => {
+        actions.append(addMessageChoice(fields, variant, label, () => {
           const lastTextMessage = fillNoAnswerMessage(variant);
           saveCallSafely('No Answer', { leadTimeZone: leadTimeZone.value, contactHistory: contactHistory.value, lastTextMessage });
         }));
@@ -399,6 +457,45 @@
         ...details
       };
       entries.push(call);
+      await withStorageRetry((storage) => storage.set({
+        entries,
+        callLogs: entries.filter((entry) => entry.recordType === 'call'),
+        manualEntries: entries.filter((entry) => entry.recordType !== 'call')
+      }));
+      overlayVisible = false;
+      callFlow = null;
+      renderOverlay();
+    } finally {
+      saveInProgress = false;
+    }
+  }
+
+  async function saveDm(details = {}) {
+    if (!currentName || saveInProgress) {
+      return;
+    }
+    saveInProgress = true;
+
+    try {
+      const timestamp = new Date().toISOString();
+      publishLeadSafely(currentName);
+      const stored = await withStorageRetry((storage) => storage.get({ entries: [], callLogs: [], manualEntries: [] }));
+      const entries = Array.isArray(stored.entries) && stored.entries.length
+        ? stored.entries
+        : [
+          ...(Array.isArray(stored.callLogs) ? stored.callLogs : []).map((entry) => ({ ...entry, recordType: 'call' })),
+          ...(Array.isArray(stored.manualEntries) ? stored.manualEntries : []).map((entry) => ({ ...entry, recordType: 'entry' }))
+        ];
+      entries.push({
+        id: `${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}`,
+        recordType: 'dm',
+        name: currentName,
+        sourceUrl: window.location.href,
+        status: details.dmOutcome || 'Sent',
+        dmDateTime: timestamp,
+        timestamp,
+        ...details
+      });
       await withStorageRetry((storage) => storage.set({
         entries,
         callLogs: entries.filter((entry) => entry.recordType === 'call'),

@@ -3,14 +3,14 @@ const ENTRIES_KEY = 'entries';
 
 // Define exported columns for the raw data sheet
 const ANALYSIS_COLUMNS = [
-  ['Record type', (entry) => entry.recordType === 'call' ? 'Call' : 'Manual'],
-  ['Lead name', (entry) => entry.recordType === 'call' ? entry.name : entry.fullName],
+  ['Record type', (entry) => entry.recordType === 'call' ? 'Call' : entry.recordType === 'dm' ? 'DM' : 'Manual'],
+  ['Lead name', (entry) => entry.name || entry.fullName],
   ['Email', (entry) => entry.email || ''],
   ['Phone', (entry) => entry.phone || ''],
   ['Lead timezone', (entry) => entry.leadTimeZone || ''],
   ['Contact history', (entry) => entry.contactHistory || ''],
   ['Outcome', (entry) => entry.status || ''],
-  ['Call date/time', (entry) => toExcelDate(entry.callDateTime || entry.timestamp || entry.createdAt)],
+  ['Call date/time', (entry) => entry.recordType === 'dm' ? '' : toExcelDate(entry.callDateTime || entry.timestamp || entry.createdAt)],
   ['Call duration (seconds)', (entry) => durationToSeconds(entry.callDuration)],
   ['Picked up?', (entry) => entry.phonePickedUp === 'Yes' || entry.phonePickedUp === true ? 'Yes' : 'No'],
   ['Disqualified?', (entry) => entry.disqualified === 'Yes' || entry.disqualified === true ? 'Yes' : 'No'],
@@ -31,7 +31,11 @@ const ANALYSIS_COLUMNS = [
   ['Revenue', (entry) => typeof entry.revenue === 'number' ? entry.revenue : 0],
   ['Last text message', (entry) => entry.lastTextMessage || ''],
   ['Notes', (entry) => entry.notes || ''],
-  ['Source URL', (entry) => entry.sourceUrl || '']
+  ['Source URL', (entry) => entry.sourceUrl || ''],
+  ['DM date/time', (entry) => toExcelDate(entry.dmDateTime)],
+  ['DM channel', (entry) => entry.dmChannel || ''],
+  ['DM outcome', (entry) => entry.dmOutcome || ''],
+  ['DM message', (entry) => entry.dmMessage || '']
 ];
 
 // Helper to convert column index (0-based) to Excel Column Letter (A, B, C... AA)

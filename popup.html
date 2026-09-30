@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>GHL Call Log</title>
+  <title>GHL Outreach Log</title>
   <style>
     :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172033; background: #f7f9fc; }
     * { box-sizing: border-box; }
@@ -61,6 +61,8 @@
     .status { display: inline-block; padding: 4px 6px; border-radius: 5px; font-size: 10px; font-weight: 700; }
     .status.picked-up { color: #17633f; background: #e1f4eb; }
     .status.booked { color: #245a95; background: #e9f1ff; }
+    .status.sent { color: #59677a; background: #edf1f5; }
+    .status.replied { color: #17633f; background: #e1f4eb; }
     .status.no-answer { color: #9b3034; background: #fae5e6; }
     .status.disqualified { color: #9b3034; background: #fae5e6; }
     .status.had-to-go { color: #9a5b00; background: #fff1d6; }
@@ -78,7 +80,7 @@
   <main>
     <header>
       <div>
-        <h1>Call log</h1>
+        <h1>Outreach log</h1>
         <p class="subtitle">Local activity from GoHighLevel</p>
       </div>
       <span class="count" id="count">0</span>
@@ -89,30 +91,33 @@
         <option value="today">Today</option>
       </select>
       <button id="export-xlsx" type="button">Export XLSX</button>
-      <button id="show-call-logger" type="button">Show Call Logger</button>
+      <button id="show-call-logger" type="button">Show Outreach Logger</button>
       <span class="import-status" id="import-status" aria-live="polite"></span>
     </div>
     <h2 class="section-title">Add entry</h2>
     <form class="entry-form" id="manual-entry-form">
       <div class="stage">
         <p class="stage-heading">1. Lead info</p>
+        <label class="full-width">Outreach type<select id="activity-type" name="activityType"><option value="call">Call</option><option value="dm">DM</option></select></label>
         <label class="full-width">Full Name<input name="fullName" type="text" autocomplete="name" required></label>
         <label class="full-width">Email<input name="email" type="email" autocomplete="email"></label>
         <label class="full-width">Phone<input name="phone" type="tel" autocomplete="tel"></label>
         <label class="full-width">Lead timezone<select name="leadTimeZone"><option value="">Select</option><option>GMT-12</option><option>GMT-11</option><option>GMT-10</option><option>GMT-9</option><option>GMT-8</option><option>GMT-7</option><option>GMT-6</option><option>GMT-5</option><option>GMT-4</option><option>GMT-3</option><option>GMT-2</option><option>GMT-1</option><option>GMT</option><option>GMT+1</option><option>GMT+2</option><option>GMT+3</option><option>GMT+4</option><option>GMT+5</option><option>GMT+6</option><option>GMT+7</option><option>GMT+8</option><option>GMT+9</option><option>GMT+10</option><option>GMT+11</option><option>GMT+12</option><option>GMT+13</option><option>GMT+14</option></select></label>
         <label class="full-width">Contact history<select name="contactHistory"><option value="">Select</option><option value="First touch">First touch</option><option value="Contacted before">Contacted before</option></select></label>
+      </div>
+      <div class="stage conditional" data-show-when="activity-type=call">
         <p class="stage-heading">2. Phone</p>
-        <label class="full-width">Picked up?<select id="phone-picked-up" name="phonePickedUp" required><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
-        <label class="full-width">Call date/time<input name="callDateTime" type="datetime-local" required></label>
+        <label class="full-width">Picked up?<select id="phone-picked-up" name="phonePickedUp"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
+        <label class="full-width">Call date/time<input name="callDateTime" type="datetime-local"></label>
         <label class="conditional" data-show-when="phone-picked-up=Yes">Call duration<input name="callDuration" type="text" placeholder="MM:SS"></label>
         <label class="conditional full-width" data-show-when="phone-picked-up=No">Last text message sent<textarea name="lastTextMessage" placeholder="Paste the last message you sent"></textarea></label>
       </div>
-      <div class="stage conditional" data-show-when="phone-picked-up=Yes">
+      <div class="stage conditional" data-show-when="activity-type=call&phone-picked-up=Yes">
         <p class="stage-heading">3. Qualification</p>
         <label>Disqualified?<select id="disqualified" name="disqualified"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
         <label class="conditional" data-show-when="disqualified=Yes">Reason<input name="disqualificationReason" type="text"></label>
       </div>
-      <div class="stage conditional" data-show-when="phone-picked-up=Yes&disqualified=No">
+      <div class="stage conditional" data-show-when="activity-type=call&phone-picked-up=Yes&disqualified=No">
         <p class="stage-heading">4. Call details</p>
         <label>Talk time<input name="talkTime" type="text" placeholder="MM:SS"></label>
         <label>Talk to listen ratio<input name="talkToListenRatio" type="text" placeholder="e.g. 70/30"></label>
@@ -127,11 +132,18 @@
         </div>
         <label class="full-width">Objection notes (optional)<textarea name="objectionNotes" placeholder="Any extra context"></textarea></label>
       </div>
-      <div class="stage conditional" data-show-when="phone-picked-up=Yes&disqualified=No">
+      <div class="stage conditional" data-show-when="activity-type=call&phone-picked-up=Yes&disqualified=No">
         <p class="stage-heading">5. Pitch</p>
         <label class="full-width">Pitch outcome<select id="pitched" name="pitched"><option value="">Select</option><option value="No">No</option><option value="Low Ticket">Low ticket self close</option><option value="High Ticket">High ticket booking</option></select></label>
         <label class="conditional" data-show-when="pitched=High Ticket">Closer name<input name="closer" type="text"></label>
         <label class="conditional" data-show-when="pitched=High Ticket">Appointment date/time<input name="appointmentDate" type="datetime-local"></label>
+      </div>
+      <div class="stage conditional" data-show-when="activity-type=dm">
+        <p class="stage-heading">2. Direct message</p>
+        <label>Channel<select name="dmChannel"><option value="">Select</option><option>iMessage</option><option>SMS</option></select></label>
+        <label>Outcome<select name="dmOutcome"><option value="Sent">Sent</option><option value="Replied">Replied</option><option value="Qualified">Qualified</option><option value="Booked">Booked</option></select></label>
+        <label class="full-width">DM date/time<input name="dmDateTime" type="datetime-local"></label>
+        <label class="full-width">Message sent<textarea name="dmMessage" placeholder="Paste the message sent"></textarea></label>
       </div>
       <label class="full-width">Notes<textarea name="notes" placeholder="Relevant context or follow-up"></textarea></label>
       <button id="save-entry" type="submit">Save entry</button>

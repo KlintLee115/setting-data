@@ -7,6 +7,9 @@ function normalizeEntryStatus(entry) {
   if (!entry || typeof entry !== 'object') {
     return entry;
   }
+  if (entry.recordType === 'dm') {
+    return { ...entry, status: entry.dmOutcome || entry.status || 'Sent' };
+  }
   if (entry.disqualified === 'Yes') {
     return { ...entry, status: DISQUALIFIED_STATUS };
   }
@@ -27,7 +30,8 @@ function toCallEntry(entry) {
 }
 
 function toManualEntry(entry) {
-  return { ...normalizeEntryStatus(entry), recordType: 'entry' };
+  const normalized = normalizeEntryStatus(entry);
+  return { ...normalized, recordType: normalized.recordType === 'dm' ? 'dm' : 'entry' };
 }
 
 function combineEntries(logs, manualEntries) {

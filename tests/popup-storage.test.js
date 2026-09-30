@@ -46,6 +46,18 @@ test('loads legacy split storage and normalizes it when saved', async () => {
   assert.equal(storage.data.manualEntries[0].recordType, 'entry');
 });
 
+test('preserves DM record types in canonical storage and compatibility mirrors', async () => {
+  const storage = fakeStorage();
+  const service = createPopupStorage(storage);
+
+  await service.saveEntries([], [{ id: 'dm', recordType: 'dm', dmOutcome: 'Sent' }]);
+
+  assert.equal(storage.data.entries.length, 1);
+  assert.equal(storage.data.entries[0].recordType, 'dm');
+  assert.equal(storage.data.manualEntries[0].recordType, 'dm');
+  assert.equal((await service.loadEntries()).manualEntries[0].recordType, 'dm');
+});
+
 test('saves and clears drafts through the storage adapter', async () => {
   const storage = fakeStorage();
   const service = createPopupStorage(storage);

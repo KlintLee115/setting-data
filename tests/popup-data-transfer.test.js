@@ -45,7 +45,7 @@ test('builds an analysis-friendly workbook with typed dates and separate objecti
   const reopenedRows = XLSX.utils.sheet_to_json(reopenedSheet, { header: 1 });
   assert.equal(reopenedRows[1][column('Call duration (seconds)')], 135);
   assert.equal(reopenedRows[1][column('Objection: Partner')], true);
- assert.equal(reopenedSheet['!autofilter'].ref, 'A1:AC2');
+  assert.equal(reopenedSheet['!autofilter'].ref, 'A1:AG2');
 
   const analysis = reopened.Sheets.Analysis;
   assert.equal(analysis.B5.f, 'COUNTIF(Entries!$J:$J,"Yes")+COUNTIF(Entries!$J:$J,"No")');
@@ -62,4 +62,26 @@ test('converts supported duration values to seconds', () => {
   assert.equal(durationToSeconds('1:02:03'), 3723);
   assert.equal(durationToSeconds(42), 42);
   assert.equal(durationToSeconds('not a duration'), '');
+});
+
+test('exports DM activity fields with a distinct record type', () => {
+  const workbook = buildWorkbook([{
+    recordType: 'dm',
+    name: 'Jordan Lee',
+    status: 'Replied',
+    dmDateTime: '2026-09-29T14:00:00.000Z',
+    dmChannel: 'Instagram',
+    dmOutcome: 'Replied',
+    dmMessage: 'Are you still exploring this?'
+  }]);
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets.Entries, { header: 1 });
+  const headers = rows[0];
+  const row = rows[1];
+  const column = (header) => headers.indexOf(header);
+
+  assert.equal(row[column('Record type')], 'DM');
+  assert.equal(row[column('Lead name')], 'Jordan Lee');
+  assert.equal(row[column('DM channel')], 'Instagram');
+  assert.equal(row[column('DM outcome')], 'Replied');
+  assert.equal(row[column('DM message')], 'Are you still exploring this?');
 });

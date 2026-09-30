@@ -8,6 +8,7 @@ const cancelEditButton = document.getElementById('cancel-edit');
 const showCallLoggerButton = document.getElementById('show-call-logger');
 const {
   getLocalDateValue,
+  updateDmDateTime,
   updateCallDateTime
 } = globalThis.popupSettings;
 
@@ -52,8 +53,8 @@ async function showCallLogger() {
       result = await chrome.tabs.sendMessage(tab.id, { type: 'show-call-logger' });
     }
     importStatus.textContent = result?.shown
-      ? 'Call logger restored.'
-      : 'Open a GoHighLevel conversation to show the call logger.';
+      ? 'Outreach logger restored.'
+      : 'Open a GoHighLevel conversation to show the outreach logger.';
   } catch (error) {
     importStatus.textContent = 'Open a GoHighLevel contact, then try again.';
   } finally {
@@ -138,6 +139,12 @@ function isVisible(timestamp) {
 }
 
 function getStatusClass(status) {
+  if (status === 'Sent') {
+    return 'sent';
+  }
+  if (status === 'Replied' || status === 'Qualified') {
+    return 'replied';
+  }
   if (status === 'Had to go') {
     return 'had-to-go';
   }
@@ -153,7 +160,7 @@ function getStatusClass(status) {
 function render() {
   const entries = [
     ...logs.map((log) => ({ ...log, entryType: 'Call', sourceType: 'call', createdAt: log.timestamp })),
-    ...manualEntries.map((entry) => ({ ...entry, entryType: 'Manual', sourceType: 'manual' }))
+    ...manualEntries.map((entry) => ({ ...entry, entryType: entry.recordType === 'dm' ? 'DM' : 'Manual', sourceType: 'manual' }))
   ];
   const visibleEntries = entries
     .filter((entry) => isVisible(getEntryDateTime(entry)))
@@ -199,6 +206,31 @@ async function loadLogs() {
 
 function getEntryFormData(form) {
   const formData = new FormData(form);
+  const activityType = formData.get('activityType') || 'call';
+  const fullName = formData.get('fullName').trim();
+  const email = formData.get('email').trim();
+  const phone = formData.get('phone').trim();
+  const leadTimeZone = formData.get('leadTimeZone').trim();
+  const contactHistory = formData.get('contactHistory');
+  const notes = formData.get('notes').trim();
+  if (activityType === 'dm') {
+    const dmDateTime = formData.get('dmDateTime');
+    const dmOutcome = formData.get('dmOutcome') || 'Sent';
+    return {
+      fullName,
+      email,
+      phone,
+      leadTimeZone,
+      contactHistory,
+      recordType: 'dm',
+      dmChannel: formData.get('dmChannel'),
+      dmOutcome,
+      dmDateTime: dmDateTime ? new Date(dmDateTime).toISOString() : '',
+      dmMessage: formData.get('dmMessage').trim(),
+      status: dmOutcome,
+      notes
+    };
+  }
   const appointmentDate = formData.get('appointmentDate');
   const pitched = formData.get('pitched');
   const phonePickedUp = formData.get('phonePickedUp');
@@ -216,11 +248,11 @@ function getEntryFormData(form) {
         ? 'No Answer'
         : '';
   return {
-    fullName: formData.get('fullName').trim(),
-    email: formData.get('email').trim(),
-    phone: formData.get('phone').trim(),
-    leadTimeZone: formData.get('leadTimeZone').trim(),
-    contactHistory: formData.get('contactHistory'),
+    fullName,
+    email,
+    phone,
+    leadTimeZone,
+    contactHistory,
     phonePickedUp,
     callDateTime: formData.get('callDateTime'),
     callDuration: formData.get('callDuration'),
@@ -236,7 +268,7 @@ function getEntryFormData(form) {
     closer: formData.get('closer').trim(),
     appointmentDate: appointmentDate ? new Date(appointmentDate).toISOString() : '',
     status: normalizedStatus,
-    notes: formData.get('notes').trim()
+    notes
   };
 }
 
@@ -252,16 +284,19 @@ function getCallTime(entry) {
 }
 
 function getEntryDateTime(entry) {
-  return entry.callDateTime || entry.pickupDateTime || entry.timestamp || entry.createdAt;
+  return entry.dmDateTime || entry.callDateTime || entry.pickupDateTime || entry.timestamp || entry.createdAt;
 }
 
 function getEntrySortValue(entry, key) {
   if (key === 'date') return parseStoredDateTime(getEntryDateTime(entry)).getTime();
-  if (key === 'name') return String(entry.entryType === 'Call' ? entry.name : entry.fullName || '').toLowerCase();
+  if (key === 'name') return String(entry.name || entry.fullName || '').toLowerCase();
   return String(entry.status || '').toLowerCase();
 }
 
 function hasDuplicateCall(entry) {
+  if (entry.recordType === 'dm') {
+    return false;
+  }
   const normalizedName = normalizeName(entry.fullName || entry.name);
   const callTime = getCallTime(entry);
   if (!normalizedName || Number.isNaN(callTime.getTime())) {
@@ -271,7 +306,7 @@ function hasDuplicateCall(entry) {
   return [
     ...logs.map((log) => ({ ...log, sourceType: 'call' })),
     ...manualEntries.map((record) => ({ ...record, sourceType: 'manual' }))
-  ].some((existing) => {
+  ].filter((existing) => existing.recordType !== 'dm').some((existing) => {
     if (editingEntry
       && existing.sourceType === editingEntry.sourceType
       && existing.id === editingEntry.id) {
@@ -293,10 +328,13 @@ function findStoredEntry(target) {
 function startEditing(entry) {
   editingEntry = { sourceType: entry.sourceType, id: entry.id };
   const values = entry.entryType === 'Call'
-    ? { ...entry, fullName: entry.name, phonePickedUp: entry.status === 'Picked Up' ? 'Yes' : 'No' }
-    : { ...entry };
+    ? { ...entry, fullName: entry.name, activityType: 'call', phonePickedUp: entry.status === 'Picked Up' ? 'Yes' : 'No' }
+    : { ...entry, fullName: entry.fullName || entry.name, activityType: entry.recordType === 'dm' ? 'dm' : 'call' };
   if (values.appointmentDate) {
     values.appointmentDate = formatDateTimeInput(values.appointmentDate);
+  }
+  if (values.dmDateTime) {
+    values.dmDateTime = formatDateTimeInput(values.dmDateTime);
   }
   Object.entries(values).forEach(([name, value]) => {
     if (['entryType', 'sourceType', 'sourceIndex', 'recordType', 'createdAt', 'timestamp'].includes(name)) {
@@ -326,6 +364,7 @@ function resetEntryForm() {
   cancelEditButton.hidden = true;
   updateConditionalFields();
   updateCallDateTime();
+  updateDmDateTime();
 }
 
 async function deleteEntry(entry) {
@@ -356,7 +395,7 @@ document.getElementById('manual-entry-form').addEventListener('submit', async (e
       ? findStoredEntry(editingEntry).entry?.timestamp || findStoredEntry(editingEntry).entry?.createdAt
       : new Date().toISOString()
   };
-  if (hasDuplicateCall(entryWithCallTime)
+  if (entry.recordType !== 'dm' && hasDuplicateCall(entryWithCallTime)
     && !confirm(`A call for ${entry.fullName} at this time already exists. Save another entry anyway?`)) {
     return;
   }
@@ -388,12 +427,15 @@ document.getElementById('manual-entry-form').addEventListener('submit', async (e
     }
     await persistEntries();
   } else {
-    const resolvedStatus = entry.pitched === 'High Ticket'
-      ? 'Booked'
-      : entry.phonePickedUp === 'Yes' ? 'Picked Up' : entry.phonePickedUp === 'No' ? 'No Answer' : '';
+    const resolvedStatus = entry.recordType === 'dm'
+      ? entry.dmOutcome
+      : entry.pitched === 'High Ticket'
+        ? 'Booked'
+        : entry.phonePickedUp === 'Yes' ? 'Picked Up' : entry.phonePickedUp === 'No' ? 'No Answer' : '';
     manualEntries.push({
       ...entry,
       status: resolvedStatus,
+      recordType: entry.recordType === 'dm' ? 'dm' : 'entry',
       id: createEntryId(),
       createdAt: new Date().toISOString()
     });
@@ -418,6 +460,11 @@ function updateConditionalFields() {
     }
   });
   updatePitchFieldRequirements();
+  const isDm = document.getElementById('activity-type').value === 'dm';
+  document.querySelector('[name="phonePickedUp"]').required = !isDm;
+  document.querySelector('[name="callDateTime"]').required = !isDm;
+  document.querySelector('[name="dmChannel"]').required = isDm;
+  document.querySelector('[name="dmDateTime"]').required = isDm;
 }
 
 function clearFieldValues(container) {
@@ -443,6 +490,11 @@ document.querySelectorAll('#manual-entry-form select').forEach((select) => {
     saveFormDraft();
   });
 });
+document.getElementById('activity-type').addEventListener('change', () => {
+  updateConditionalFields();
+  updateDmDateTime();
+  saveFormDraft();
+});
 globalThis.setupPopupDataTransfer();
 showCallLoggerButton.addEventListener('click', showCallLogger);
 clearFormButton.addEventListener('click', async () => {
@@ -456,6 +508,7 @@ cancelEditButton.addEventListener('click', async () => {
 document.getElementById('manual-entry-form').addEventListener('input', saveFormDraft);
 updateConditionalFields();
 updateCallDateTime();
+updateDmDateTime();
 
 dateFilter.addEventListener('change', () => {
   entryRenderLimit = 50;
