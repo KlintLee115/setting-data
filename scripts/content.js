@@ -88,27 +88,6 @@
     return hours === 0 ? 'GMT' : `GMT${match[1]}${hours}`;
   }
 
-  function getTouchHistory() {
-    const bubbles = typeof document.querySelectorAll === 'function'
-      ? Array.from(document.querySelectorAll('.message-item .chat-bubble-outbound') || [])
-      : [];
-    const touchedBy = [];
-    bubbles.forEach((bubble) => {
-      const initials = normalizeName(
-        bubble.closest('.message-item')?.querySelector('.hr-avatar__text p')?.textContent || ''
-      ).toUpperCase();
-      if (initials && !touchedBy.includes(initials)) {
-        touchedBy.push(initials);
-      }
-    });
-    const callMatches = String(document.body?.innerText || '').match(/call completed|no answer/gi);
-    return {
-      priorDms: bubbles.length,
-      priorCalls: callMatches ? callMatches.length : 0,
-      touchedBy: touchedBy.join(', ')
-    };
-  }
-
   function getContactKey(name) {
     return `${window.location.pathname}|${window.location.search}|${name.toLowerCase()}`;
   }
@@ -138,14 +117,14 @@
   function getNoAnswerMessage(variant) {
     const firstName = currentName.trim().split(/\s+/)[0] || 'there';
     if (variant === 'followup') {
-      return `Heyy ${firstName}, Klint here from Alicia Lyttle's AI team 😊 \n\n did u get my msg?`;
+      return `Heyy ${firstName}, Klint here from Alicia Lyttle's AI team ðŸ˜Š \n\n did u get my msg?`;
     }
     const eventLine = {
       form: 'I saw that you filled out the form for the AI Consultancy Certification to possibly leverage AI more in your biz, or become an AI consultant.',
       standard: 'I saw that you registered for the AI Marketing Summit to possibly make more money or have more freedom.',
       build: 'I saw that you signed up for the Build It Launch It challenge.'
     }[variant];
-    const baseMessage = `Heyy ${firstName}, this is Klint with Alicia Lyttle's AI team 😊 \n\n${eventLine}\n\n We are just checking on all the vip members - how did the summit go for you?`;
+    const baseMessage = `Heyy ${firstName}, this is Klint with Alicia Lyttle's AI team ðŸ˜Š \n\n${eventLine}\n\n We are just checking on all the vip members - how did the summit go for you?`;
     if (variant === 'build') {
       return baseMessage;
     }
@@ -346,12 +325,12 @@
       const pickedUp = nextButton('Picked up', () => startCallFlow());
       pickedUp.className = 'picked-up';
       const noAnswer = nextButton('No answer', () => {
-        callFlow = { step: 'message-choice', data: { leadTimeZone: getDetectedLeadTimeZone(), ...getTouchHistory() } };
+        callFlow = { step: 'message-choice', data: { leadTimeZone: getDetectedLeadTimeZone() } };
         renderCallFlow();
       });
       noAnswer.className = 'no-answer';
       const logDm = nextButton('Log DM', () => {
-        callFlow = { step: 'dm', data: getTouchHistory() };
+        callFlow = { step: 'dm', data: {} };
         renderCallFlow();
       });
       actions.append(pickedUp, noAnswer, logDm);
@@ -385,9 +364,6 @@
           return;
         }
         saveDmSafely({
-          priorDms: callFlow.data.priorDms,
-          priorCalls: callFlow.data.priorCalls,
-          touchedBy: callFlow.data.touchedBy,
           source: source.value,
           dmChannel: channel.value,
           dmMessage: message.field.value,
@@ -417,7 +393,6 @@
           return;
         }
         saveCallSafely('No Answer', {
-          ...callFlow.data,
           source: source.value,
           leadTimeZone: leadTimeZone.value
         });
@@ -425,7 +400,7 @@
     } else if (callFlow.step === 'qualification') {
       const source = addSelectField(fields, 'source', 'Source', SOURCE_OPTIONS);
       const leadTimeZone = addSelectField(fields, 'leadTimeZone', 'Lead timezone', LEAD_TIME_ZONE_OPTIONS);
-      const intent = addTextAreaField(fields, 'intent', 'Intent (their answer to “What are you looking for?”)');
+      const intent = addTextAreaField(fields, 'intent', 'Intent (their answer to â€œWhat are you looking for?â€)');
       actions.append(nextButton('Next', () => {
         if (!source.value) {
           setOverlayMessage('Select a source before continuing.');
@@ -484,7 +459,7 @@
   }
 
   function startCallFlow() {
-    callFlow = { step: 'qualification', data: { leadTimeZone: getDetectedLeadTimeZone(), ...getTouchHistory() } };
+    callFlow = { step: 'qualification', data: { leadTimeZone: getDetectedLeadTimeZone() } };
     renderCallFlow();
   }
 

@@ -74,7 +74,6 @@ The primary unified collection. Each record has a stable `id` and may include:
 - `leadTimeZone` (selected GMT offset from `GMT-12` through `GMT+14`)
 - `source` (`GA Summit Sept Form`, `Inbound`, `Elective declined`, `Elective approved`, `abandoned aicc`, or `abandoned agents`)
 - `intent` (the lead’s answer to “What are you looking for?”)
-- `priorDms`, `priorCalls`, `touchedBy` (captured automatically from the GHL conversation when the logger opens: outbound message bubbles, “Call completed”/“No answer” rows, and sender initials. Only messages loaded on the page are counted)
 - `phonePickedUp`
 - `callDateTime`
 - `callDuration`
