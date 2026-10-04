@@ -401,7 +401,6 @@
       const source = addSelectField(fields, 'source', 'Source', SOURCE_OPTIONS);
       const leadTimeZone = addSelectField(fields, 'leadTimeZone', 'Lead timezone', LEAD_TIME_ZONE_OPTIONS);
       const intent = addTextAreaField(fields, 'intent', 'Intent (their answer to “What are you looking for?”)');
-      const disqualified = addSelectField(fields, 'disqualified', 'Disqualified?', [['', 'Select'], ['Yes', 'Yes'], ['No', 'No']]);
       actions.append(nextButton('Next', () => {
         if (!source.value) {
           setOverlayMessage('Select a source before continuing.');
@@ -410,15 +409,8 @@
         callFlow.data.source = source.value;
         callFlow.data.leadTimeZone = leadTimeZone.value;
         callFlow.data.intent = intent.value;
-        callFlow.data.disqualified = disqualified.value;
-        callFlow.step = disqualified.value === 'Yes' ? 'disqualification' : 'details';
+        callFlow.step = 'details';
         renderCallFlow();
-      }));
-    } else if (callFlow.step === 'disqualification') {
-      const reason = addTextField(fields, 'disqualificationReason', 'Reason');
-      actions.append(nextButton('Save', () => {
-        callFlow.data.disqualificationReason = reason.value;
-        saveCallSafely('Picked Up', callFlow.data);
       }));
     } else if (callFlow.step === 'details') {
       const talkTime = addTextField(fields, 'talkTime', 'Talk time (MM:SS)');
@@ -444,8 +436,10 @@
       }));
     } else if (callFlow.step === 'pitch') {
       const pitched = addSelectField(fields, 'pitched', 'Pitch outcome', [['', 'Select'], ['No', 'No'], ['Low Ticket', 'Low ticket self close'], ['High Ticket', 'High ticket booking']]);
+      const notes = addTextAreaField(fields, 'notes', 'Notes (why they did not proceed)');
       actions.append(nextButton('Next', () => {
         callFlow.data.pitched = pitched.value;
+        callFlow.data.notes = notes.value;
         if (pitched.value === 'High Ticket') {
           callFlow.step = 'appointment';
           renderCallFlow();

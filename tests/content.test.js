@@ -359,7 +359,6 @@ test('picked-up follows the form flow and saves appointment details', async () =
   logger.field('source').value = 'Inbound';
   logger.field('leadTimeZone').value = 'America/Los_Angeles';
   logger.field('intent').value = 'Use AI to grow an existing business';
-  logger.field('disqualified').value = 'No';
   logger.clickAction();
   logger.field('talkTime').value = '5:00';
   logger.field('clientType9to5').checked = true;
@@ -376,7 +375,6 @@ test('picked-up follows the form flow and saves appointment details', async () =
   await flushPromises();
 
   const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
-  assert.equal(saved.disqualified, 'No');
   assert.equal(saved.source, 'Inbound');
   assert.equal(saved.leadTimeZone, 'America/Los_Angeles');
   assert.equal(saved.intent, 'Use AI to grow an existing business');
@@ -397,7 +395,6 @@ test('records the lead answer to the intent question as open text', async () => 
   logger.clickPickedUp();
   logger.field('source').value = 'GA Summit Sept Form';
   logger.field('intent').value = 'Become an AI consultant';
-  logger.field('disqualified').value = 'No';
   logger.clickAction();
   logger.clickAction();
   logger.field('pitched').value = 'No';
@@ -414,7 +411,6 @@ test('uses browser local time for call logger appointments', async () => {
 
   logger.clickPickedUp();
   logger.field('source').value = 'Inbound';
-  logger.field('disqualified').value = 'No';
   logger.clickAction();
   logger.clickAction();
   logger.field('pitched').value = 'High Ticket';
@@ -432,7 +428,6 @@ test('saves directly when the pitch is declined, without a separate outcome step
   const logger = loadContentScript();
 
   logger.clickPickedUp();
-  logger.field('disqualified').value = 'No';
   logger.clickAction();
   logger.field('objectionHadToGo').checked = true;
   logger.field('objectionJustCurious').checked = true;

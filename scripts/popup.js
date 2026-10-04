@@ -149,9 +149,6 @@ function getStatusClass(status) {
   if (status === 'Had to go') {
     return 'had-to-go';
   }
-  if (status === 'Disqualified') {
-    return 'disqualified';
-  }
   if (['Picked Up', 'Showed', 'Booked'].includes(status)) {
     return status === 'Booked' ? 'booked' : 'picked-up';
   }
@@ -242,9 +239,7 @@ function getEntryFormData(form) {
     formData.has('clientType9to5') ? '9-5' : '',
     formData.has('clientTypeBusinessOwner') ? 'Business Owner' : ''
   ].filter(Boolean).join(', ');
-  const normalizedStatus = formData.get('disqualified') === 'Yes'
-    ? 'Disqualified'
-    : pitched === 'High Ticket' || appointmentDate
+  const normalizedStatus = pitched === 'High Ticket' || appointmentDate
     ? 'Booked'
     : phonePickedUp === 'Yes'
       ? 'Picked Up'
@@ -262,8 +257,6 @@ function getEntryFormData(form) {
     callDateTime: formData.get('callDateTime'),
     callDuration: formData.get('callDuration'),
     lastTextMessage: formData.get('lastTextMessage').trim(),
-    disqualified: formData.get('disqualified'),
-    disqualificationReason: formData.get('disqualificationReason').trim(),
     talkTime: formData.get('talkTime').trim(),
     clientType,
     objections,

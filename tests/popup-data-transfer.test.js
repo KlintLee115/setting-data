@@ -13,7 +13,6 @@ test('builds an analysis-friendly workbook with typed dates and separate objecti
     source: 'Inbound',
     intent: 'Use AI to grow an existing business',
     phonePickedUp: 'Yes',
-    disqualified: 'No',
     status: 'Booked',
     callDateTime: '2026-09-28T14:30:00.000Z',
     callDuration: '02:15',
@@ -50,7 +49,7 @@ test('builds an analysis-friendly workbook with typed dates and separate objecti
   const reopenedRows = XLSX.utils.sheet_to_json(reopenedSheet, { header: 1 });
   assert.equal(reopenedRows[1][column('Call duration (seconds)')], 135);
   assert.equal(reopenedRows[1][column('Objection: Partner')], true);
-  assert.equal(reopenedSheet['!autofilter'].ref, 'A1:AG2');
+  assert.equal(reopenedSheet['!autofilter'].ref, 'A1:AE2');
 
   const analysis = reopened.Sheets.Analysis;
   assert.equal(analysis.B5.f, 'COUNTIF(Entries!$K:$K,"Yes")+COUNTIF(Entries!$K:$K,"No")');

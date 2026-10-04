@@ -13,13 +13,6 @@ test('booked appointment takes precedence over phone outcome', () => {
   assert.equal(normalizeEntryStatus({ appointmentDate: '2026-09-17T13:00:00Z' }).status, 'Booked');
 });
 
-test('disqualified status takes precedence over a previous booked appointment', () => {
-  assert.equal(
-    normalizeEntryStatus({ disqualified: 'Yes', wasSet: 'Yes', appointmentDate: '2026-09-17T13:00:00Z' }).status,
-    'Disqualified'
-  );
-});
-
 test('phone outcomes normalize to stable statuses', () => {
   assert.equal(normalizeEntryStatus({ phonePickedUp: 'Yes' }).status, 'Picked Up');
   assert.equal(normalizeEntryStatus({ phonePickedUp: 'No' }).status, 'No Answer');

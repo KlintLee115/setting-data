@@ -66,7 +66,6 @@
     .status.sent { color: #59677a; background: #edf1f5; }
     .status.replied { color: #17633f; background: #e1f4eb; }
     .status.no-answer { color: #9b3034; background: #fae5e6; }
-    .status.disqualified { color: #9b3034; background: #fae5e6; }
     .status.had-to-go { color: #9a5b00; background: #fff1d6; }
     .empty { padding: 28px 14px; color: #718096; font-size: 12px; text-align: center; }
     .cell-stack { display: grid; gap: 3px; min-width: 0; }
@@ -116,11 +115,9 @@
       </div>
       <div class="stage conditional" data-show-when="activity-type=call&phone-picked-up=Yes">
         <p class="stage-heading">3. Qualification</p>
-        <label>Disqualified?<select id="disqualified" name="disqualified"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
-        <label class="conditional" data-show-when="disqualified=Yes">Reason<input name="disqualificationReason" type="text"></label>
         <label class="full-width">Intent (their answer to “What are you looking for?”)<textarea name="intent" placeholder="Record the lead’s answer"></textarea></label>
       </div>
-      <div class="stage conditional" data-show-when="activity-type=call&phone-picked-up=Yes&disqualified=No">
+      <div class="stage conditional" data-show-when="activity-type=call&phone-picked-up=Yes">
         <p class="stage-heading">4. Call details</p>
         <label>Talk time<input name="talkTime" type="text" placeholder="MM:SS"></label>
         <div class="checkbox-group">
@@ -138,7 +135,7 @@
         </div>
         <label class="full-width">Objection notes (optional)<textarea name="objectionNotes" placeholder="Any extra context"></textarea></label>
       </div>
-      <div class="stage conditional" data-show-when="activity-type=call&phone-picked-up=Yes&disqualified=No">
+      <div class="stage conditional" data-show-when="activity-type=call&phone-picked-up=Yes">
         <p class="stage-heading">5. Pitch</p>
         <label class="full-width">Pitch outcome<select id="pitched" name="pitched"><option value="">Select</option><option value="No">No</option><option value="Low Ticket">Low ticket self close</option><option value="High Ticket">High ticket booking</option></select></label>
         <label class="conditional" data-show-when="pitched=High Ticket">Closer name<input name="closer" type="text"></label>
@@ -151,7 +148,7 @@
         <label class="full-width">DM date/time<input name="dmDateTime" type="datetime-local"></label>
         <label class="full-width">Message sent<textarea name="dmMessage" placeholder="Paste the message sent"></textarea></label>
       </div>
-      <label class="full-width">Notes<textarea name="notes" placeholder="Relevant context or follow-up"></textarea></label>
+      <label class="full-width">Notes (why they did not proceed)<textarea name="notes" placeholder="Relevant context or follow-up"></textarea></label>
       <button id="save-entry" type="submit">Save entry</button>
       <button class="secondary" id="clear-form" type="button">Clear form</button>
       <button class="secondary" id="cancel-edit" type="button" hidden>Cancel edit</button>

@@ -14,8 +14,6 @@ const ANALYSIS_COLUMNS = [
   ['Call date/time', (entry) => entry.recordType === 'dm' ? '' : toExcelDate(entry.callDateTime || entry.timestamp || entry.createdAt)],
   ['Call duration (seconds)', (entry) => durationToSeconds(entry.callDuration)],
   ['Picked up?', (entry) => entry.phonePickedUp === 'Yes' || entry.phonePickedUp === true ? 'Yes' : 'No'],
-  ['Disqualified?', (entry) => entry.disqualified === 'Yes' || entry.disqualified === true ? 'Yes' : 'No'],
-  ['Disqualification reason', (entry) => entry.disqualificationReason || ''],
   ['Talk time (seconds)', (entry) => durationToSeconds(entry.talkTime)],
   ['Client type', (entry) => entry.clientType || ''],
   ['Objection: Partner', (entry) => hasObjection(entry.objections, 'Partner')],
@@ -89,7 +87,6 @@ function setFormula(worksheet, address, formula, numberFormat) {
 function buildAnalysisWorksheet(entries) {
   // Dynamically pull column letters for Entries sheet
   const colPickedUp = getColumnLetter('Picked up?');
-  const colDisqualified = getColumnLetter('Disqualified?');
   const colPitchOutcome = getColumnLetter('Pitch outcome');
   const colTimezone = getColumnLetter('Lead timezone');
 
@@ -127,10 +124,10 @@ function buildAnalysisWorksheet(entries) {
   // Dynamic Excel range formulas
   const fAttempts = `COUNTIF(Entries!$${colPickedUp}:$${colPickedUp},"Yes")+COUNTIF(Entries!$${colPickedUp}:$${colPickedUp},"No")`;
   const fPickups = `COUNTIF(Entries!$${colPickedUp}:$${colPickedUp},"Yes")`;
-  const fQualified = `COUNTIFS(Entries!$${colPickedUp}:$${colPickedUp},"Yes",Entries!$${colDisqualified}:$${colDisqualified},"No")`;
-  const fPitched = `COUNTIFS(Entries!$${colDisqualified}:$${colDisqualified},"No",Entries!$${colPitchOutcome}:$${colPitchOutcome},"Low Ticket")+COUNTIFS(Entries!$${colDisqualified}:$${colDisqualified},"No",Entries!$${colPitchOutcome}:$${colPitchOutcome},"High Ticket")`;
-  const fAppointments = `COUNTIFS(Entries!$${colDisqualified}:$${colDisqualified},"No",Entries!$${colPitchOutcome}:$${colPitchOutcome},"High Ticket")`;
-  const fLowTicket = `COUNTIFS(Entries!$${colDisqualified}:$${colDisqualified},"No",Entries!$${colPitchOutcome}:$${colPitchOutcome},"Low Ticket")`;
+  const fQualified = `COUNTIFS(Entries!$${colPickedUp}:$${colPickedUp},"Yes")`;
+  const fPitched = `COUNTIFS(Entries!$${colPitchOutcome}:$${colPitchOutcome},"Low Ticket")+COUNTIFS(Entries!$${colPitchOutcome}:$${colPitchOutcome},"High Ticket")`;
+  const fAppointments = `COUNTIFS(Entries!$${colPitchOutcome}:$${colPitchOutcome},"High Ticket")`;
+  const fLowTicket = `COUNTIFS(Entries!$${colPitchOutcome}:$${colPitchOutcome},"Low Ticket")`;
 
   // Set Counts (Rows 5 through 10)
   [fAttempts, fPickups, fQualified, fPitched, fAppointments, fLowTicket].forEach((formula, idx) => {
@@ -153,8 +150,8 @@ function buildAnalysisWorksheet(entries) {
     setFormula(worksheet, `B${row}`, `COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"Yes")+COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"No")`);
     setFormula(worksheet, `C${row}`, `COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"Yes")`);
     setFormula(worksheet, `D${row}`, `IF(B${row}=0,"",C${row}/B${row})`, '0.0%');
-    setFormula(worksheet, `E${row}`, `COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"Yes",Entries!$${colDisqualified}:$${colDisqualified},"No")`);
-    setFormula(worksheet, `F${row}`, `COUNTIFS(${criteria},Entries!$${colDisqualified}:$${colDisqualified},"No",Entries!$${colPitchOutcome}:$${colPitchOutcome},"High Ticket")`);
+    setFormula(worksheet, `E${row}`, `COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"Yes")`);
+    setFormula(worksheet, `F${row}`, `COUNTIFS(${criteria},Entries!$${colPitchOutcome}:$${colPitchOutcome},"High Ticket")`);
     setFormula(worksheet, `G${row}`, `IF(E${row}=0,"",F${row}/E${row})`, '0.0%');
   });
 

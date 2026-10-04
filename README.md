@@ -52,12 +52,12 @@ The popup supports a Call/DM selector. Call entries retain the existing progress
 
 1. Lead information: name, email, phone, lead timezone, and a required source selected from the fixed list
 2. Phone: pickup outcome, call datetime, duration, or last text message for no-answer calls
-3. Qualification: the lead’s open-text answer to “What are you looking for?”, and disqualified status/reason
+3. Qualification: the lead’s open-text answer to “What are you looking for?”
 4. Call details: talk time, client type, and objection checkboxes with optional notes
 5. Pitch: No / Low ticket self close / High ticket booking (High ticket also asks for closer name and appointment date/time)
 6. Notes
 
-The form hides stages that do not apply. For example, qualification is not shown until a lead picks up, and call details/pitch are not shown for disqualified leads. The DM flow records channel, outcome, date/time, and message independently of call fields.
+The form hides stages that do not apply. For example, qualification is not shown until a lead picks up, and call details/pitch are only shown after a lead picks up. The DM flow records channel, outcome, date/time, and message independently of call fields.
 
 ## Storage
 
@@ -78,8 +78,6 @@ The primary unified collection. Each record has a stable `id` and may include:
 - `callDateTime`
 - `callDuration`
 - `lastTextMessage`
-- `disqualified`
-- `disqualificationReason`
 - `talkTime`
 - `clientType` (selected `9-5` and/or `Business Owner` checkboxes)
 - `objections` and `objectionNotes`

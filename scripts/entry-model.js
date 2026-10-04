@@ -1,5 +1,4 @@
 const BOOKED_STATUS = 'Booked';
-const DISQUALIFIED_STATUS = 'Disqualified';
 const PICKED_UP_STATUS = 'Picked Up';
 const NO_ANSWER_STATUS = 'No Answer';
 
@@ -9,9 +8,6 @@ function normalizeEntryStatus(entry) {
   }
   if (entry.recordType === 'dm') {
     return { ...entry, status: entry.dmOutcome || entry.status || 'Sent' };
-  }
-  if (entry.disqualified === 'Yes') {
-    return { ...entry, status: DISQUALIFIED_STATUS };
   }
   if (entry.pitched === 'High Ticket' || entry.wasSet === 'Yes' || entry.appointmentDate) {
     return { ...entry, status: BOOKED_STATUS };
@@ -52,7 +48,6 @@ function searchEntriesByName(entries, query) {
 if (typeof module !== 'undefined') {
   module.exports = {
     BOOKED_STATUS,
-    DISQUALIFIED_STATUS,
     NO_ANSWER_STATUS,
     PICKED_UP_STATUS,
     combineEntries,
