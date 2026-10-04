@@ -88,6 +88,27 @@
     return hours === 0 ? 'GMT' : `GMT${match[1]}${hours}`;
   }
 
+  function getTouchHistory() {
+    const bubbles = typeof document.querySelectorAll === 'function'
+      ? Array.from(document.querySelectorAll('.message-item .chat-bubble-outbound') || [])
+      : [];
+    const touchedBy = [];
+    bubbles.forEach((bubble) => {
+      const initials = normalizeName(
+        bubble.closest('.message-item')?.querySelector('.hr-avatar__text p')?.textContent || ''
+      ).toUpperCase();
+      if (initials && !touchedBy.includes(initials)) {
+        touchedBy.push(initials);
+      }
+    });
+    const callMatches = String(document.body?.innerText || '').match(/call completed|no answer/gi);
+    return {
+      priorDms: bubbles.length,
+      priorCalls: callMatches ? callMatches.length : 0,
+      touchedBy: touchedBy.join(', ')
+    };
+  }
+
   function getContactKey(name) {
     return `${window.location.pathname}|${window.location.search}|${name.toLowerCase()}`;
   }
@@ -325,12 +346,12 @@
       const pickedUp = nextButton('Picked up', () => startCallFlow());
       pickedUp.className = 'picked-up';
       const noAnswer = nextButton('No answer', () => {
-        callFlow = { step: 'message-choice', data: { leadTimeZone: getDetectedLeadTimeZone() } };
+        callFlow = { step: 'message-choice', data: { leadTimeZone: getDetectedLeadTimeZone(), ...getTouchHistory() } };
         renderCallFlow();
       });
       noAnswer.className = 'no-answer';
       const logDm = nextButton('Log DM', () => {
-        callFlow = { step: 'dm', data: {} };
+        callFlow = { step: 'dm', data: getTouchHistory() };
         renderCallFlow();
       });
       actions.append(pickedUp, noAnswer, logDm);
@@ -364,6 +385,9 @@
           return;
         }
         saveDmSafely({
+          priorDms: callFlow.data.priorDms,
+          priorCalls: callFlow.data.priorCalls,
+          touchedBy: callFlow.data.touchedBy,
           source: source.value,
           dmChannel: channel.value,
           dmMessage: message.field.value,
@@ -393,6 +417,7 @@
           return;
         }
         saveCallSafely('No Answer', {
+          ...callFlow.data,
           source: source.value,
           leadTimeZone: leadTimeZone.value
         });
@@ -419,7 +444,7 @@
         ['Business Owner', addCheckboxField(fields, 'clientTypeBusinessOwner', 'Business Owner')]
       ];
       const objectionCheckboxes = OBJECTION_OPTIONS.map(([key, label]) => [label, addCheckboxField(fields, key, label)]);
-      const objectionNotes = addTextField(fields, 'objectionNotes', 'Objection notes (optional)');
+      const notes = addTextAreaField(fields, 'notes', 'Notes (why they did not proceed)');
       actions.append(nextButton('Next', () => {
         callFlow.data.talkTime = talkTime.value;
         callFlow.data.clientType = clientTypeOptions
@@ -430,16 +455,14 @@
           .filter(([, checkbox]) => checkbox.checked)
           .map(([label]) => label)
           .join(', ');
-        callFlow.data.objectionNotes = objectionNotes.value;
+        callFlow.data.notes = notes.value;
         callFlow.step = 'pitch';
         renderCallFlow();
       }));
     } else if (callFlow.step === 'pitch') {
       const pitched = addSelectField(fields, 'pitched', 'Pitch outcome', [['', 'Select'], ['No', 'No'], ['Low Ticket', 'Low ticket self close'], ['High Ticket', 'High ticket booking']]);
-      const notes = addTextAreaField(fields, 'notes', 'Notes (why they did not proceed)');
       actions.append(nextButton('Next', () => {
         callFlow.data.pitched = pitched.value;
-        callFlow.data.notes = notes.value;
         if (pitched.value === 'High Ticket') {
           callFlow.step = 'appointment';
           renderCallFlow();
@@ -461,7 +484,7 @@
   }
 
   function startCallFlow() {
-    callFlow = { step: 'qualification', data: { leadTimeZone: getDetectedLeadTimeZone() } };
+    callFlow = { step: 'qualification', data: { leadTimeZone: getDetectedLeadTimeZone(), ...getTouchHistory() } };
     renderCallFlow();
   }
 
@@ -495,6 +518,13 @@
         delete entry.hasShownIntentBefore;
         delete entry.shownIntent;
         delete entry.talkToListenRatio;
+        const legacyNotes = [entry.disqualificationReason, entry.objectionNotes].filter(Boolean).join(' | ');
+        if (legacyNotes) {
+          entry.notes = [entry.notes, legacyNotes].filter(Boolean).join(' | ');
+        }
+        delete entry.objectionNotes;
+        delete entry.disqualified;
+        delete entry.disqualificationReason;
       });
       const timestamp = new Date().toISOString();
       const durationMatch = document.body.innerText.match(/(?:call completed[\s\S]{0,120}?)?(\d{1,2}:\d{2})\s*\/\s*(\d{1,2}:\d{2})/i);
@@ -547,6 +577,13 @@
         delete entry.hasShownIntentBefore;
         delete entry.shownIntent;
         delete entry.talkToListenRatio;
+        const legacyNotes = [entry.disqualificationReason, entry.objectionNotes].filter(Boolean).join(' | ');
+        if (legacyNotes) {
+          entry.notes = [entry.notes, legacyNotes].filter(Boolean).join(' | ');
+        }
+        delete entry.objectionNotes;
+        delete entry.disqualified;
+        delete entry.disqualificationReason;
       });
       entries.push({
         id: `${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}`,

@@ -1,7 +1,7 @@
 function createPopupStorage(storage = chrome.storage.local) {
   const entriesKey = 'entries';
   const withoutLegacyFields = (entry) => {
-    const { contactHistory, hasContactedBefore, hasShownIntentBefore, shownIntent, talkToListenRatio, ...trackedEntry } = entry;
+    const { contactHistory, hasContactedBefore, hasShownIntentBefore, shownIntent, talkToListenRatio, disqualified, disqualificationReason, objectionNotes, ...trackedEntry } = entry;
     delete trackedEntry['has contacted before'];
     return trackedEntry;
   };

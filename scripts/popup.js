@@ -260,7 +260,6 @@ function getEntryFormData(form) {
     talkTime: formData.get('talkTime').trim(),
     clientType,
     objections,
-    objectionNotes: formData.get('objectionNotes').trim(),
     pitched,
     closer: formData.get('closer').trim(),
     appointmentDate: appointmentDate ? new Date(appointmentDate).toISOString() : '',

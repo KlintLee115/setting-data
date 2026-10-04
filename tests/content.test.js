@@ -364,7 +364,7 @@ test('picked-up follows the form flow and saves appointment details', async () =
   logger.field('clientType9to5').checked = true;
   logger.field('clientTypeBusinessOwner').checked = true;
   logger.field('objectionPartner').checked = true;
-  logger.field('objectionNotes').value = 'Price';
+  logger.field('notes').value = 'Price';
   logger.clickAction();
   logger.field('pitched').value = 'High Ticket';
   logger.clickAction();
@@ -383,7 +383,7 @@ test('picked-up follows the form flow and saves appointment details', async () =
   assert.equal(logger.field('talkToListenRatio'), undefined);
   assert.equal(saved.clientType, '9-5, Business Owner');
   assert.equal(saved.objections, 'Partner');
-  assert.equal(saved.objectionNotes, 'Price');
+  assert.equal(saved.notes, 'Price');
   assert.equal(saved.pitched, 'High Ticket');
   assert.equal(saved.closer, 'Alicia Lyttle');
   assert.equal(saved.appointmentDate, new Date('2026-09-20T10:00').toISOString());
