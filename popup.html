@@ -104,7 +104,6 @@
         <label class="full-width">Email<input name="email" type="email" autocomplete="email"></label>
         <label class="full-width">Phone<input name="phone" type="tel" autocomplete="tel"></label>
         <label class="full-width">Lead timezone<select name="leadTimeZone"><option value="">Select</option><option>GMT-12</option><option>GMT-11</option><option>GMT-10</option><option>GMT-9</option><option>GMT-8</option><option>GMT-7</option><option>GMT-6</option><option>GMT-5</option><option>GMT-4</option><option>GMT-3</option><option>GMT-2</option><option>GMT-1</option><option>GMT</option><option>GMT+1</option><option>GMT+2</option><option>GMT+3</option><option>GMT+4</option><option>GMT+5</option><option>GMT+6</option><option>GMT+7</option><option>GMT+8</option><option>GMT+9</option><option>GMT+10</option><option>GMT+11</option><option>GMT+12</option><option>GMT+13</option><option>GMT+14</option></select></label>
-        <label class="full-width">Source<select name="source" required><option value="">Select source</option><option>GA Summit Sept Form</option><option>Inbound</option><option>Elective declined</option><option>Elective approved</option><option>abandoned aicc</option><option>abandoned agents</option></select></label>
       </div>
       <div class="stage conditional" data-show-when="activity-type=call">
         <p class="stage-heading">2. Phone</p>
@@ -146,6 +145,7 @@
         <label>Outcome<select name="dmOutcome"><option value="Sent">Sent</option><option value="Replied">Replied</option><option value="Qualified">Qualified</option><option value="Booked">Booked</option></select></label>
         <label class="full-width">DM date/time<input name="dmDateTime" type="datetime-local"></label>
         <label class="full-width">Message sent<textarea name="dmMessage" placeholder="Paste the message sent"></textarea></label>
+        <label class="full-width">Lead response<textarea name="dmResponse" placeholder="Paste the lead's reply"></textarea></label>
       </div>
       <label class="full-width">Notes (why they did not proceed)<textarea name="notes" placeholder="Relevant context or follow-up"></textarea></label>
       <button id="save-entry" type="submit">Save entry</button>

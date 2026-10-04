@@ -8,7 +8,6 @@ const ANALYSIS_COLUMNS = [
   ['Email', (entry) => entry.email || ''],
   ['Phone', (entry) => entry.phone || ''],
   ['Lead timezone', (entry) => entry.leadTimeZone || ''],
-  ['Source', (entry) => entry.source || ''],
   ['Intent', (entry) => entry.intent || ''],
   ['Outcome', (entry) => entry.status || ''],
   ['Call date/time', (entry) => entry.recordType === 'dm' ? '' : toExcelDate(entry.callDateTime || entry.timestamp || entry.createdAt)],
@@ -32,7 +31,8 @@ const ANALYSIS_COLUMNS = [
   ['DM date/time', (entry) => toExcelDate(entry.dmDateTime)],
   ['DM channel', (entry) => entry.dmChannel || ''],
   ['DM outcome', (entry) => entry.dmOutcome || ''],
-  ['DM message', (entry) => entry.dmMessage || '']
+  ['DM message', (entry) => entry.dmMessage || ''],
+  ['DM response', (entry) => entry.dmResponse || '']
 ];
 
 // Helper to convert column index (0-based) to Excel Column Letter (A, B, C... AA)

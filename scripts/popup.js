@@ -218,12 +218,12 @@ function getEntryFormData(form) {
       email,
       phone,
       leadTimeZone,
-      source: formData.get('source'),
       recordType: 'dm',
       dmChannel: formData.get('dmChannel'),
       dmOutcome,
       dmDateTime: dmDateTime ? new Date(dmDateTime).toISOString() : '',
       dmMessage: formData.get('dmMessage').trim(),
+      dmResponse: formData.get('dmResponse').trim(),
       status: dmOutcome,
       notes
     };
@@ -251,7 +251,6 @@ function getEntryFormData(form) {
     email,
     phone,
     leadTimeZone,
-    source: formData.get('source'),
     intent: formData.get('intent').trim(),
     phonePickedUp,
     callDateTime: formData.get('callDateTime'),

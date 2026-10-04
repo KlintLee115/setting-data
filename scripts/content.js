@@ -10,15 +10,6 @@
       return [offset === 0 ? 'GMT' : `GMT${offset > 0 ? '+' : ''}${offset}`, offset === 0 ? 'GMT' : `GMT${offset > 0 ? '+' : ''}${offset}`];
     })
   ];
-  const SOURCE_OPTIONS = [
-    ['', 'Select source'],
-    ['GA Summit Sept Form', 'GA Summit Sept Form'],
-    ['Inbound', 'Inbound'],
-    ['Elective declined', 'Elective declined'],
-    ['Elective approved', 'Elective approved'],
-    ['abandoned aicc', 'abandoned aicc'],
-    ['abandoned agents', 'abandoned agents']
-  ];
   const MESSAGE_VARIANTS = [
     ['followup', 'Use follow-up message'],
     ['standard', 'Use standard message'],
@@ -117,14 +108,14 @@
   function getNoAnswerMessage(variant) {
     const firstName = currentName.trim().split(/\s+/)[0] || 'there';
     if (variant === 'followup') {
-      return `Heyy ${firstName}, Klint here from Alicia Lyttle's AI team ðŸ˜Š \n\n did u get my msg?`;
+      return `Heyy ${firstName}, Klint here from Alicia Lyttle's AI team 😊 \n\n did u get my msg?`;
     }
     const eventLine = {
       form: 'I saw that you filled out the form for the AI Consultancy Certification to possibly leverage AI more in your biz, or become an AI consultant.',
       standard: 'I saw that you registered for the AI Marketing Summit to possibly make more money or have more freedom.',
       build: 'I saw that you signed up for the Build It Launch It challenge.'
     }[variant];
-    const baseMessage = `Heyy ${firstName}, this is Klint with Alicia Lyttle's AI team ðŸ˜Š \n\n${eventLine}\n\n We are just checking on all the vip members - how did the summit go for you?`;
+    const baseMessage = `Heyy ${firstName}, this is Klint with Alicia Lyttle's AI team 😊 \n\n${eventLine}\n\n We are just checking on all the vip members - how did the summit go for you?`;
     if (variant === 'build') {
       return baseMessage;
     }
@@ -337,7 +328,6 @@
       return;
     }
     if (callFlow.step === 'dm') {
-      const source = addSelectField(fields, 'source', 'Source', SOURCE_OPTIONS);
       const channel = addSelectField(fields, 'dmChannel', 'Channel', [
         ['', 'Select'],
         ['iMessage', 'iMessage'],
@@ -351,6 +341,9 @@
           message.field.value = fillNoAnswerMessage(variant);
         }));
       });
+      const response = createField('textarea', 'dmResponse', 'Lead response');
+      response.field.value = callFlow.data.dmResponse || '';
+      fields.appendChild(response.label);
       const outcome = addSelectField(fields, 'dmOutcome', 'Outcome', [
         ['Sent', 'Sent'],
         ['Replied', 'Replied'],
@@ -359,19 +352,13 @@
       ]);
       outcome.value = callFlow.data.dmOutcome || 'Sent';
       actions.append(nextButton('Save DM', () => {
-        if (!source.value) {
-          setOverlayMessage('Select a source before saving.');
-          return;
-        }
         saveDmSafely({
-          source: source.value,
           dmChannel: channel.value,
           dmMessage: message.field.value,
           dmOutcome: outcome.value
         });
       }));
     } else if (callFlow.step === 'message-choice') {
-      const source = addSelectField(fields, 'source', 'Source', SOURCE_OPTIONS);
       const leadTimeZone = addSelectField(fields, 'leadTimeZone', 'Lead timezone', LEAD_TIME_ZONE_OPTIONS);
       const heading = document.createElement('div');
       heading.textContent = 'Which message do you want to use?';
@@ -379,34 +366,19 @@
       fields.appendChild(heading);
       MESSAGE_VARIANTS.forEach(([variant, label]) => {
         actions.append(addMessageChoice(fields, variant, label, () => {
-          if (!source.value) {
-            setOverlayMessage('Select a source before saving.');
-            return;
-          }
           const lastTextMessage = fillNoAnswerMessage(variant);
-          saveCallSafely('No Answer', { source: source.value, leadTimeZone: leadTimeZone.value, lastTextMessage });
+          saveCallSafely('No Answer', { leadTimeZone: leadTimeZone.value, lastTextMessage });
         }));
       });
       actions.append(nextButton('Leave blank', () => {
-        if (!source.value) {
-          setOverlayMessage('Select a source before saving.');
-          return;
-        }
         saveCallSafely('No Answer', {
-          source: source.value,
           leadTimeZone: leadTimeZone.value
         });
       }));
     } else if (callFlow.step === 'qualification') {
-      const source = addSelectField(fields, 'source', 'Source', SOURCE_OPTIONS);
       const leadTimeZone = addSelectField(fields, 'leadTimeZone', 'Lead timezone', LEAD_TIME_ZONE_OPTIONS);
-      const intent = addTextAreaField(fields, 'intent', 'Intent (their answer to â€œWhat are you looking for?â€)');
+      const intent = addTextAreaField(fields, 'intent', 'Intent (their answer to "What are you looking for?")');
       actions.append(nextButton('Next', () => {
-        if (!source.value) {
-          setOverlayMessage('Select a source before continuing.');
-          return;
-        }
-        callFlow.data.source = source.value;
         callFlow.data.leadTimeZone = leadTimeZone.value;
         callFlow.data.intent = intent.value;
         callFlow.step = 'details';
@@ -430,7 +402,9 @@
           .filter(([, checkbox]) => checkbox.checked)
           .map(([label]) => label)
           .join(', ');
-        callFlow.data.notes = notes.value;
+        if (notes.value) {
+          callFlow.data.notes = notes.value;
+        }
         callFlow.step = 'pitch';
         renderCallFlow();
       }));

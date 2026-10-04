@@ -212,11 +212,11 @@ test('fills the no-answer follow-up message for the lead', () => {
   logger.clickNoAnswer();
   logger.clickAction(1);
 
-  assert.equal(logger.composer.value, `Hey Jane, Klint here from Alicia's team (not AI, I promise 😂)
+  assert.equal(logger.composer.value, `Heyy Jane, this is Klint with Alicia Lyttle's AI team 😊 
 
-Just hopped off a few meetings and saw you just registered for our AI Business Summit... Just to see if I can help you get more out of it
+I saw that you registered for the AI Marketing Summit to possibly make more money or have more freedom.
 
-Are you looking to implement AI with your current biz or are you just starting out with AI biz?`);
+ We are just checking on all the vip members - how did the summit go for you?`);
   assert.deepEqual(logger.composer.events.map((event) => event.type), ['input', 'change']);
   assert.equal(logger.composer.events.every((event) => event.bubbles), true);
 });
@@ -227,11 +227,11 @@ test('supports the AI consultancy certification form no-answer message', () => {
   logger.clickNoAnswer();
   logger.clickAction(2);
 
-  assert.equal(logger.composer.value, `Hey Jane, Klint here from Alicia's team (not AI, I promise 😂)
+  assert.equal(logger.composer.value, `Heyy Jane, this is Klint with Alicia Lyttle's AI team 😊 
 
-Saw you recently filled out the form for our AI Consultancy Certification... Just to see if I can help u get more out of it
+I saw that you filled out the form for the AI Consultancy Certification to possibly leverage AI more in your biz, or become an AI consultant.
 
-Are you looking to implement AI with your current biz or are you just starting out with AI biz?`);
+ We are just checking on all the vip members - how did the summit go for you?`);
 });
 
 test('supports the Build It Launch It no-answer message', () => {
@@ -240,11 +240,11 @@ test('supports the Build It Launch It no-answer message', () => {
   logger.clickNoAnswer();
   logger.clickAction(3);
 
-  assert.equal(logger.composer.value, `Hey Jane, Klint here from Alicia's team (not AI, I promise 😂)
+  assert.equal(logger.composer.value, `Heyy Jane, this is Klint with Alicia Lyttle's AI team 😊 
 
-Saw you recently registefred for our Build It Launch It event... Just to see if I can help u get more out of it
+I saw that you signed up for the Build It Launch It challenge.
 
-Are you looking to build an app for your business, or what is it for?`);
+ We are just checking on all the vip members - how did the summit go for you?`);
 });
 
 test('saves the no-answer message as the last text message', async () => {
@@ -279,7 +279,7 @@ test('offers a follow-up, form, standard, and Build It Launch It no-answer messa
   logger.clickAction();
   await flushPromises();
 
-  assert.equal(logger.composer.value, 'Hey Jane, did u get my msg?');
+  assert.equal(logger.composer.value, `Heyy Jane, Klint here from Alicia Lyttle's AI team 😊 \n\n did u get my msg?`);
   assert.equal(logger.storageCalls.at(-1)[0].entries.at(-1).lastTextMessage, logger.composer.value);
 });
 
@@ -289,21 +289,19 @@ test('supports the alternate GHL input composer selector', () => {
   logger.clickNoAnswer();
   logger.clickAction(1);
 
-  assert.match(logger.composer.value, /Hey Jane/);
+  assert.match(logger.composer.value, /Heyy Jane/);
 });
 
 test('can save a no-answer call without leaving a text message', async () => {
   const logger = loadContentScript();
 
   logger.clickNoAnswer();
-  logger.field('source').value = 'Inbound';
   logger.field('leadTimeZone').value = 'America/New_York';
   logger.clickAction(4);
   await flushPromises();
 
   const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
   assert.equal(saved.status, 'No Answer');
-  assert.equal(saved.source, 'Inbound');
   assert.equal(saved.leadTimeZone, 'America/New_York');
   assert.equal(Object.hasOwn(saved, 'contactHistory'), false);
   assert.equal(saved.lastTextMessage, undefined);
@@ -324,7 +322,6 @@ test('logs a DM as a separate activity without call-only fields', async () => {
   const logger = loadContentScript();
 
   logger.clickDm();
-  logger.field('source').value = 'Elective approved';
   assert.deepEqual(logger.field('dmChannel').children.map((option) => option.value), ['', 'iMessage', 'SMS']);
   logger.field('dmChannel').value = 'iMessage';
   logger.field('dmOutcome').value = 'Sent';
@@ -342,10 +339,9 @@ test('logs a DM as a separate activity without call-only fields', async () => {
 
   const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
   assert.equal(saved.recordType, 'dm');
-  assert.equal(saved.source, 'Elective approved');
   assert.equal(saved.name, 'Jane Doe');
   assert.equal(saved.dmChannel, 'iMessage');
-  assert.equal(saved.dmMessage, 'Hey Jane, did u get my msg?');
+  assert.equal(saved.dmMessage, `Heyy Jane, Klint here from Alicia Lyttle's AI team 😊 \n\n did u get my msg?`);
   assert.equal(saved.dmOutcome, 'Sent');
   assert.equal(saved.status, 'Sent');
   assert.equal(saved.phonePickedUp, undefined);
@@ -356,7 +352,6 @@ test('picked-up follows the form flow and saves appointment details', async () =
   const logger = loadContentScript();
 
   logger.clickPickedUp();
-  logger.field('source').value = 'Inbound';
   logger.field('leadTimeZone').value = 'America/Los_Angeles';
   logger.field('intent').value = 'Use AI to grow an existing business';
   logger.clickAction();
@@ -375,7 +370,6 @@ test('picked-up follows the form flow and saves appointment details', async () =
   await flushPromises();
 
   const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
-  assert.equal(saved.source, 'Inbound');
   assert.equal(saved.leadTimeZone, 'America/Los_Angeles');
   assert.equal(saved.intent, 'Use AI to grow an existing business');
   assert.equal(Object.hasOwn(saved, 'contactHistory'), false);
@@ -393,7 +387,6 @@ test('records the lead answer to the intent question as open text', async () => 
   const logger = loadContentScript();
 
   logger.clickPickedUp();
-  logger.field('source').value = 'GA Summit Sept Form';
   logger.field('intent').value = 'Become an AI consultant';
   logger.clickAction();
   logger.clickAction();
@@ -402,7 +395,6 @@ test('records the lead answer to the intent question as open text', async () => 
   await flushPromises();
 
   const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
-  assert.equal(saved.source, 'GA Summit Sept Form');
   assert.equal(saved.intent, 'Become an AI consultant');
 });
 
@@ -410,7 +402,6 @@ test('uses browser local time for call logger appointments', async () => {
   const logger = loadContentScript();
 
   logger.clickPickedUp();
-  logger.field('source').value = 'Inbound';
   logger.clickAction();
   logger.clickAction();
   logger.field('pitched').value = 'High Ticket';

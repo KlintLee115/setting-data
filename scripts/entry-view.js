@@ -48,7 +48,7 @@ function createEntryRow(entry, { formatDate, formatDateTime, getStatusClass, onE
   const details = entry.entryType === 'Call'
     ? `Call: ${formatDateTime(entry.callDateTime || entry.pickupDateTime || entry.timestamp)} | Picked up: ${entry.phonePickedUp || '-'} | Duration: ${entry.callDuration || '-'}`
     : entry.entryType === 'DM'
-      ? `DM: ${entry.dmChannel || '-'} | Outcome: ${entry.dmOutcome || entry.status || 'Sent'} | Sent: ${formatDateTime(entry.dmDateTime || entry.createdAt)} | Message: ${entry.dmMessage || '-'}${entry.notes ? ` | Notes: ${entry.notes}` : ''}`
+      ? `DM: ${entry.dmChannel || '-'} | Outcome: ${entry.dmOutcome || entry.status || 'Sent'} | Sent: ${formatDateTime(entry.dmDateTime || entry.createdAt)} | Message: ${entry.dmMessage || '-'} | Response: ${entry.dmResponse || '-'}${entry.notes ? ` | Notes: ${entry.notes}` : ''}`
       : `Call: ${formatDateTime(entry.callDateTime)} | Last text: ${entry.lastTextMessage || '-'} | Appt: ${formatDateTime(entry.appointmentDate)} | Closer: ${entry.closer || '-'} | Duration: ${entry.callDuration || '-'}${entry.notes ? ` | Notes: ${entry.notes}` : ''} | Talk time: ${entry.talkTime || '-'} | Client type: ${entry.clientType || '-'} | Objections: ${entry.objections || '-'} | Pitched: ${entry.pitched || '-'}`;
   const displayStatus = entry.status;
   const statusClass = entry.entryType === 'Call' || entry.status
