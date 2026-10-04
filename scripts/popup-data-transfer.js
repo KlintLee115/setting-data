@@ -8,7 +8,8 @@ const ANALYSIS_COLUMNS = [
   ['Email', (entry) => entry.email || ''],
   ['Phone', (entry) => entry.phone || ''],
   ['Lead timezone', (entry) => entry.leadTimeZone || ''],
-  ['Contact history', (entry) => entry.contactHistory || ''],
+  ['Source', (entry) => entry.source || ''],
+  ['Intent', (entry) => entry.intent || ''],
   ['Outcome', (entry) => entry.status || ''],
   ['Call date/time', (entry) => entry.recordType === 'dm' ? '' : toExcelDate(entry.callDateTime || entry.timestamp || entry.createdAt)],
   ['Call duration (seconds)', (entry) => durationToSeconds(entry.callDuration)],
@@ -16,7 +17,6 @@ const ANALYSIS_COLUMNS = [
   ['Disqualified?', (entry) => entry.disqualified === 'Yes' || entry.disqualified === true ? 'Yes' : 'No'],
   ['Disqualification reason', (entry) => entry.disqualificationReason || ''],
   ['Talk time (seconds)', (entry) => durationToSeconds(entry.talkTime)],
-  ['Talk-to-listen ratio', (entry) => entry.talkToListenRatio || ''],
   ['Client type', (entry) => entry.clientType || ''],
   ['Objection: Partner', (entry) => hasObjection(entry.objections, 'Partner')],
   ['Objection: Had to go', (entry) => hasObjection(entry.objections, 'Had to go')],
@@ -91,7 +91,6 @@ function buildAnalysisWorksheet(entries) {
   const colPickedUp = getColumnLetter('Picked up?');
   const colDisqualified = getColumnLetter('Disqualified?');
   const colPitchOutcome = getColumnLetter('Pitch outcome');
-  const colContactHistory = getColumnLetter('Contact history');
   const colTimezone = getColumnLetter('Lead timezone');
 
   const rows = [
@@ -105,12 +104,6 @@ function buildAnalysisWorksheet(entries) {
     ['Pitched conversations', '', '', 'Qualified conversations'],
     ['High-ticket appointments', '', '', 'Qualified conversations'],
     ['Low-ticket outcomes', '', '', 'Qualified conversations'],
-    [],
-    ['By contact history'],
-    ['Contact history', 'Attempts', 'Pickups', 'Pickup rate', 'Qualified', 'High-ticket appointments', 'Booking rate'],
-    ['First touch'],
-    ['Contacted before'],
-    ['Not recorded'],
     [],
     ['By lead timezone'],
     ['Lead timezone', 'Attempts', 'Pickups', 'Pickup rate', 'Qualified', 'High-ticket appointments', 'Booking rate']
@@ -153,25 +146,9 @@ function buildAnalysisWorksheet(entries) {
     [10, 'IF(B7=0,"",B10/B7)']
   ].forEach(([row, formula]) => setFormula(worksheet, `C${row}`, formula, '0.0%'));
 
-  // Contact History Breakdowns (Rows 14-16)
-  const contactHistoryRows = [
-    [14, 'First touch'],
-    [15, 'Contacted before'],
-    [16, '']
-  ];
-  contactHistoryRows.forEach(([row, history]) => {
-    const criteria = `Entries!$${colContactHistory}:$${colContactHistory},${history ? `"${history}"` : '""'}`;
-    setFormula(worksheet, `B${row}`, `COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"Yes")+COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"No")`);
-    setFormula(worksheet, `C${row}`, `COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"Yes")`);
-    setFormula(worksheet, `D${row}`, `IF(B${row}=0,"",C${row}/B${row})`, '0.0%');
-    setFormula(worksheet, `E${row}`, `COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"Yes",Entries!$${colDisqualified}:$${colDisqualified},"No")`);
-    setFormula(worksheet, `F${row}`, `COUNTIFS(${criteria},Entries!$${colDisqualified}:$${colDisqualified},"No",Entries!$${colPitchOutcome}:$${colPitchOutcome},"High Ticket")`);
-    setFormula(worksheet, `G${row}`, `IF(E${row}=0,"",F${row}/E${row})`, '0.0%');
-  });
-
-  // Timezone Breakdowns (Row 20+)
+  // Timezone Breakdowns (Row 14+)
   timezones.forEach((timezone, index) => {
-    const row = 20 + index;
+    const row = 14 + index;
     const criteria = `Entries!$${colTimezone}:$${colTimezone},"${timezone === 'Not recorded' ? '' : timezone}"`;
     setFormula(worksheet, `B${row}`, `COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"Yes")+COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"No")`);
     setFormula(worksheet, `C${row}`, `COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"Yes")`);

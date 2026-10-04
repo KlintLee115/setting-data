@@ -296,15 +296,16 @@ test('can save a no-answer call without leaving a text message', async () => {
   const logger = loadContentScript();
 
   logger.clickNoAnswer();
+  logger.field('source').value = 'Inbound';
   logger.field('leadTimeZone').value = 'America/New_York';
-  logger.field('contactHistory').value = 'Contacted before';
   logger.clickAction(4);
   await flushPromises();
 
   const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
   assert.equal(saved.status, 'No Answer');
+  assert.equal(saved.source, 'Inbound');
   assert.equal(saved.leadTimeZone, 'America/New_York');
-  assert.equal(saved.contactHistory, 'Contacted before');
+  assert.equal(Object.hasOwn(saved, 'contactHistory'), false);
   assert.equal(saved.lastTextMessage, undefined);
   assert.equal(logger.composer.value, '');
 });
@@ -323,6 +324,7 @@ test('logs a DM as a separate activity without call-only fields', async () => {
   const logger = loadContentScript();
 
   logger.clickDm();
+  logger.field('source').value = 'Elective approved';
   assert.deepEqual(logger.field('dmChannel').children.map((option) => option.value), ['', 'iMessage', 'SMS']);
   logger.field('dmChannel').value = 'iMessage';
   logger.field('dmOutcome').value = 'Sent';
@@ -340,6 +342,7 @@ test('logs a DM as a separate activity without call-only fields', async () => {
 
   const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
   assert.equal(saved.recordType, 'dm');
+  assert.equal(saved.source, 'Elective approved');
   assert.equal(saved.name, 'Jane Doe');
   assert.equal(saved.dmChannel, 'iMessage');
   assert.equal(saved.dmMessage, 'Hey Jane, did u get my msg?');
@@ -353,13 +356,14 @@ test('picked-up follows the form flow and saves appointment details', async () =
   const logger = loadContentScript();
 
   logger.clickPickedUp();
+  logger.field('source').value = 'Inbound';
   logger.field('leadTimeZone').value = 'America/Los_Angeles';
-  logger.field('contactHistory').value = 'First touch';
+  logger.field('intent').value = 'Use AI to grow an existing business';
   logger.field('disqualified').value = 'No';
   logger.clickAction();
   logger.field('talkTime').value = '5:00';
-  logger.field('talkToListenRatio').value = '70/30';
-  logger.field('clientType').value = 'Business Owner';
+  logger.field('clientType9to5').checked = true;
+  logger.field('clientTypeBusinessOwner').checked = true;
   logger.field('objectionPartner').checked = true;
   logger.field('objectionNotes').value = 'Price';
   logger.clickAction();
@@ -373,11 +377,13 @@ test('picked-up follows the form flow and saves appointment details', async () =
 
   const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
   assert.equal(saved.disqualified, 'No');
+  assert.equal(saved.source, 'Inbound');
   assert.equal(saved.leadTimeZone, 'America/Los_Angeles');
-  assert.equal(saved.contactHistory, 'First touch');
+  assert.equal(saved.intent, 'Use AI to grow an existing business');
+  assert.equal(Object.hasOwn(saved, 'contactHistory'), false);
   assert.equal(saved.talkTime, '5:00');
-  assert.equal(saved.talkToListenRatio, '70/30');
-  assert.equal(saved.clientType, 'Business Owner');
+  assert.equal(logger.field('talkToListenRatio'), undefined);
+  assert.equal(saved.clientType, '9-5, Business Owner');
   assert.equal(saved.objections, 'Partner');
   assert.equal(saved.objectionNotes, 'Price');
   assert.equal(saved.pitched, 'High Ticket');
@@ -385,10 +391,29 @@ test('picked-up follows the form flow and saves appointment details', async () =
   assert.equal(saved.appointmentDate, new Date('2026-09-20T10:00').toISOString());
 });
 
+test('records the lead answer to the intent question as open text', async () => {
+  const logger = loadContentScript();
+
+  logger.clickPickedUp();
+  logger.field('source').value = 'GA Summit Sept Form';
+  logger.field('intent').value = 'Become an AI consultant';
+  logger.field('disqualified').value = 'No';
+  logger.clickAction();
+  logger.clickAction();
+  logger.field('pitched').value = 'No';
+  logger.clickAction();
+  await flushPromises();
+
+  const saved = logger.storageCalls.at(-1)[0].entries.at(-1);
+  assert.equal(saved.source, 'GA Summit Sept Form');
+  assert.equal(saved.intent, 'Become an AI consultant');
+});
+
 test('uses browser local time for call logger appointments', async () => {
   const logger = loadContentScript();
 
   logger.clickPickedUp();
+  logger.field('source').value = 'Inbound';
   logger.field('disqualified').value = 'No';
   logger.clickAction();
   logger.clickAction();

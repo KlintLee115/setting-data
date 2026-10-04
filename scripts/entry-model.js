@@ -41,6 +41,14 @@ function combineEntries(logs, manualEntries) {
   ];
 }
 
+function searchEntriesByName(entries, query) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return entries;
+  }
+  return entries.filter((entry) => String(entry.name || entry.fullName || '').toLowerCase().includes(normalizedQuery));
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     BOOKED_STATUS,
@@ -49,6 +57,7 @@ if (typeof module !== 'undefined') {
     PICKED_UP_STATUS,
     combineEntries,
     normalizeEntryStatus,
+    searchEntriesByName,
     toCallEntry,
     toManualEntry
   };

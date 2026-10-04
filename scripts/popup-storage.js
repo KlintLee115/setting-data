@@ -1,5 +1,10 @@
 function createPopupStorage(storage = chrome.storage.local) {
   const entriesKey = 'entries';
+  const withoutLegacyFields = (entry) => {
+    const { contactHistory, hasContactedBefore, hasShownIntentBefore, shownIntent, talkToListenRatio, ...trackedEntry } = entry;
+    delete trackedEntry['has contacted before'];
+    return trackedEntry;
+  };
 
   async function loadEntries() {
     const stored = await storage.get({
@@ -9,34 +14,38 @@ function createPopupStorage(storage = chrome.storage.local) {
     });
     if (Array.isArray(stored[entriesKey])) {
       return {
-        logs: stored[entriesKey].filter((entry) => entry.recordType === 'call'),
-        manualEntries: stored[entriesKey].filter((entry) => entry.recordType !== 'call')
+        logs: stored[entriesKey].filter((entry) => entry.recordType === 'call').map(withoutLegacyFields),
+        manualEntries: stored[entriesKey].filter((entry) => entry.recordType !== 'call').map(withoutLegacyFields)
       };
     }
     return {
-      logs: Array.isArray(stored.callLogs) ? stored.callLogs : [],
-      manualEntries: Array.isArray(stored.manualEntries) ? stored.manualEntries : []
+      logs: Array.isArray(stored.callLogs) ? stored.callLogs.map(withoutLegacyFields) : [],
+      manualEntries: Array.isArray(stored.manualEntries) ? stored.manualEntries.map(withoutLegacyFields) : []
     };
   }
 
   async function saveEntries(logs, manualEntries) {
-    const normalizedManualEntries = manualEntries.map(toManualEntry);
-    const entries = combineEntries(logs, normalizedManualEntries);
+    const normalizedLogs = logs.map(withoutLegacyFields);
+    const normalizedManualEntries = manualEntries.map((entry) => toManualEntry(withoutLegacyFields(entry)));
+    const entries = combineEntries(normalizedLogs, normalizedManualEntries);
     await storage.set({
       [entriesKey]: entries,
-      callLogs: logs,
+      callLogs: normalizedLogs,
       manualEntries: normalizedManualEntries
     });
     return normalizedManualEntries;
   }
 
   async function saveDraft(draft) {
-    await storage.set({ conversationDraft: draft });
+    await storage.set({ conversationDraft: withoutLegacyFields(draft) });
   }
 
   async function loadDraft() {
     const stored = await storage.get({ conversationDraft: null });
-    return stored.conversationDraft;
+    if (!stored.conversationDraft) {
+      return stored.conversationDraft;
+    }
+    return withoutLegacyFields(stored.conversationDraft);
   }
 
   async function loadPendingLead() {

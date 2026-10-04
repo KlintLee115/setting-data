@@ -10,13 +10,15 @@ test('builds an analysis-friendly workbook with typed dates and separate objecti
     recordType: 'entry',
     fullName: 'Jane Doe',
     leadTimeZone: 'GMT-7',
-    contactHistory: 'Contacted before',
+    source: 'Inbound',
+    intent: 'Use AI to grow an existing business',
     phonePickedUp: 'Yes',
     disqualified: 'No',
     status: 'Booked',
     callDateTime: '2026-09-28T14:30:00.000Z',
     callDuration: '02:15',
     talkTime: '1:05',
+    talkToListenRatio: '70/30',
     objections: 'Partner, Had to go',
     pitched: 'High Ticket',
     appointmentDate: '2026-10-01T16:00:00.000Z'
@@ -30,9 +32,12 @@ test('builds an analysis-friendly workbook with typed dates and separate objecti
   assert.deepEqual(workbook.SheetNames, ['Analysis', 'Entries']);
   assert.equal(row[column('Lead name')], 'Jane Doe');
   assert.equal(row[column('Lead timezone')], 'GMT-7');
-  assert.equal(row[column('Contact history')], 'Contacted before');
+  assert.equal(row[column('Source')], 'Inbound');
+  assert.equal(row[column('Intent')], 'Use AI to grow an existing business');
+  assert.equal(column('Contact history'), -1);
   assert.equal(row[column('Call duration (seconds)')], 135);
   assert.equal(row[column('Talk time (seconds)')], 65);
+  assert.equal(column('Talk-to-listen ratio'), -1);
   assert.equal(row[column('Objection: Partner')], true);
   assert.equal(row[column('Objection: Had to go')], true);
   assert.equal(row[column('Objection: Not interested')], false);
@@ -48,13 +53,13 @@ test('builds an analysis-friendly workbook with typed dates and separate objecti
   assert.equal(reopenedSheet['!autofilter'].ref, 'A1:AG2');
 
   const analysis = reopened.Sheets.Analysis;
-  assert.equal(analysis.B5.f, 'COUNTIF(Entries!$J:$J,"Yes")+COUNTIF(Entries!$J:$J,"No")');
+  assert.equal(analysis.B5.f, 'COUNTIF(Entries!$K:$K,"Yes")+COUNTIF(Entries!$K:$K,"No")');
   assert.equal(analysis.C6.f, 'IF(B5=0,"",B6/B5)');
   assert.equal(analysis.C6.z, '0.0%');
-  assert.equal(analysis.A20.v, 'GMT-7');
-  assert.equal(analysis.B20.f, 'COUNTIFS(Entries!$E:$E,"GMT-7",Entries!$J:$J,"Yes")+COUNTIFS(Entries!$E:$E,"GMT-7",Entries!$J:$J,"No")');
-  assert.equal(analysis.A21.v, 'Not recorded');
-  assert.equal(analysis.A22, undefined);
+  assert.equal(analysis.A14.v, 'GMT-7');
+  assert.equal(analysis.B14.f, 'COUNTIFS(Entries!$E:$E,"GMT-7",Entries!$K:$K,"Yes")+COUNTIFS(Entries!$E:$E,"GMT-7",Entries!$K:$K,"No")');
+  assert.equal(analysis.A15.v, 'Not recorded');
+  assert.equal(analysis.A16, undefined);
 });
 
 test('converts supported duration values to seconds', () => {

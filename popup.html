@@ -14,6 +14,8 @@
     .subtitle { margin: 5px 0 0; color: #718096; font-size: 12px; }
     .count { min-width: 34px; padding: 6px 8px; border-radius: 999px; background: #e5edf8; color: #245a95; font-size: 12px; font-weight: 700; text-align: center; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .entries-toolbar { display: flex; gap: 8px; margin-bottom: 8px; }
+    .entries-toolbar input { flex: 1; min-width: 0; min-height: 34px; padding: 0 9px; border: 1px solid #d8e0eb; border-radius: 7px; color: #29364a; font: inherit; font-size: 12px; }
     select, button { min-height: 34px; border: 1px solid #d8e0eb; border-radius: 7px; background: #ffffff; color: #29364a; font: inherit; font-size: 12px; }
     select { flex: 1; padding: 0 9px; }
     button { padding: 0 10px; cursor: pointer; font-weight: 700; }
@@ -103,7 +105,7 @@
         <label class="full-width">Email<input name="email" type="email" autocomplete="email"></label>
         <label class="full-width">Phone<input name="phone" type="tel" autocomplete="tel"></label>
         <label class="full-width">Lead timezone<select name="leadTimeZone"><option value="">Select</option><option>GMT-12</option><option>GMT-11</option><option>GMT-10</option><option>GMT-9</option><option>GMT-8</option><option>GMT-7</option><option>GMT-6</option><option>GMT-5</option><option>GMT-4</option><option>GMT-3</option><option>GMT-2</option><option>GMT-1</option><option>GMT</option><option>GMT+1</option><option>GMT+2</option><option>GMT+3</option><option>GMT+4</option><option>GMT+5</option><option>GMT+6</option><option>GMT+7</option><option>GMT+8</option><option>GMT+9</option><option>GMT+10</option><option>GMT+11</option><option>GMT+12</option><option>GMT+13</option><option>GMT+14</option></select></label>
-        <label class="full-width">Contact history<select name="contactHistory"><option value="">Select</option><option value="First touch">First touch</option><option value="Contacted before">Contacted before</option></select></label>
+        <label class="full-width">Source<select name="source" required><option value="">Select source</option><option>GA Summit Sept Form</option><option>Inbound</option><option>Elective declined</option><option>Elective approved</option><option>abandoned aicc</option><option>abandoned agents</option></select></label>
       </div>
       <div class="stage conditional" data-show-when="activity-type=call">
         <p class="stage-heading">2. Phone</p>
@@ -116,12 +118,16 @@
         <p class="stage-heading">3. Qualification</p>
         <label>Disqualified?<select id="disqualified" name="disqualified"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
         <label class="conditional" data-show-when="disqualified=Yes">Reason<input name="disqualificationReason" type="text"></label>
+        <label class="full-width">Intent (their answer to “What are you looking for?”)<textarea name="intent" placeholder="Record the lead’s answer"></textarea></label>
       </div>
       <div class="stage conditional" data-show-when="activity-type=call&phone-picked-up=Yes&disqualified=No">
         <p class="stage-heading">4. Call details</p>
         <label>Talk time<input name="talkTime" type="text" placeholder="MM:SS"></label>
-        <label>Talk to listen ratio<input name="talkToListenRatio" type="text" placeholder="e.g. 70/30"></label>
-        <label>Client type<select name="clientType"><option value="">Select</option><option value="Business Owner">Business Owner</option><option value="9-5">9-5</option><option value="Unemployed">Unemployed</option></select></label>
+        <div class="checkbox-group">
+          <span class="checkbox-group-label">Client type</span>
+          <label class="checkbox-option"><input type="checkbox" name="clientType9to5" value="9-5"> 9-5</label>
+          <label class="checkbox-option"><input type="checkbox" name="clientTypeBusinessOwner" value="Business Owner"> Business Owner</label>
+        </div>
         <div class="full-width checkbox-group">
           <span class="checkbox-group-label">Objections</span>
           <label class="checkbox-option"><input type="checkbox" data-objection name="objectionPartner" value="Partner"> Partner</label>
@@ -151,6 +157,9 @@
       <button class="secondary" id="cancel-edit" type="button" hidden>Cancel edit</button>
     </form>
     <h2 class="section-title">Entries</h2>
+    <div class="entries-toolbar">
+      <input id="entry-search" type="search" aria-label="Search leads by name" placeholder="Search leads by name">
+    </div>
     <div class="table-wrap">
       <table>
         <thead><tr><th><button type="button" data-sort="date">Date / time</button></th><th><button type="button" data-sort="name">Name / email</button></th><th><button type="button" data-sort="status">Status / details</button></th><th>Actions</th></tr></thead>

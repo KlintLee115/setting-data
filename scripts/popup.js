@@ -1,5 +1,6 @@
 const logBody = document.getElementById('log-body');
 const dateFilter = document.getElementById('date-filter');
+const entrySearch = document.getElementById('entry-search');
 const count = document.getElementById('count');
 const importStatus = document.getElementById('import-status');
 const saveEntryButton = document.getElementById('save-entry');
@@ -162,7 +163,7 @@ function render() {
     ...logs.map((log) => ({ ...log, entryType: 'Call', sourceType: 'call', createdAt: log.timestamp })),
     ...manualEntries.map((entry) => ({ ...entry, entryType: entry.recordType === 'dm' ? 'DM' : 'Manual', sourceType: 'manual' }))
   ];
-  const visibleEntries = entries
+  const visibleEntries = searchEntriesByName(entries, entrySearch.value)
     .filter((entry) => isVisible(getEntryDateTime(entry)))
     .sort((a, b) => {
       const first = getEntrySortValue(a, entrySort.key);
@@ -211,7 +212,6 @@ function getEntryFormData(form) {
   const email = formData.get('email').trim();
   const phone = formData.get('phone').trim();
   const leadTimeZone = formData.get('leadTimeZone').trim();
-  const contactHistory = formData.get('contactHistory');
   const notes = formData.get('notes').trim();
   if (activityType === 'dm') {
     const dmDateTime = formData.get('dmDateTime');
@@ -221,7 +221,7 @@ function getEntryFormData(form) {
       email,
       phone,
       leadTimeZone,
-      contactHistory,
+      source: formData.get('source'),
       recordType: 'dm',
       dmChannel: formData.get('dmChannel'),
       dmOutcome,
@@ -238,6 +238,10 @@ function getEntryFormData(form) {
     .filter(([name]) => formData.get(name))
     .map(([, label]) => label)
     .join(', ');
+  const clientType = [
+    formData.has('clientType9to5') ? '9-5' : '',
+    formData.has('clientTypeBusinessOwner') ? 'Business Owner' : ''
+  ].filter(Boolean).join(', ');
   const normalizedStatus = formData.get('disqualified') === 'Yes'
     ? 'Disqualified'
     : pitched === 'High Ticket' || appointmentDate
@@ -252,7 +256,8 @@ function getEntryFormData(form) {
     email,
     phone,
     leadTimeZone,
-    contactHistory,
+    source: formData.get('source'),
+    intent: formData.get('intent').trim(),
     phonePickedUp,
     callDateTime: formData.get('callDateTime'),
     callDuration: formData.get('callDuration'),
@@ -260,8 +265,7 @@ function getEntryFormData(form) {
     disqualified: formData.get('disqualified'),
     disqualificationReason: formData.get('disqualificationReason').trim(),
     talkTime: formData.get('talkTime').trim(),
-    talkToListenRatio: formData.get('talkToListenRatio').trim(),
-    clientType: formData.get('clientType'),
+    clientType,
     objections,
     objectionNotes: formData.get('objectionNotes').trim(),
     pitched,
@@ -337,7 +341,7 @@ function startEditing(entry) {
     values.dmDateTime = formatDateTimeInput(values.dmDateTime);
   }
   Object.entries(values).forEach(([name, value]) => {
-    if (['entryType', 'sourceType', 'sourceIndex', 'recordType', 'createdAt', 'timestamp'].includes(name)) {
+    if (['entryType', 'sourceType', 'sourceIndex', 'recordType', 'createdAt', 'timestamp', 'clientType'].includes(name)) {
       return;
     }
     setFormValue(name, value);
@@ -345,6 +349,10 @@ function startEditing(entry) {
   const selectedObjections = String(values.objections || '').split(',').map((value) => value.trim()).filter(Boolean);
   document.querySelectorAll('#manual-entry-form [data-objection]').forEach((checkbox) => {
     checkbox.checked = selectedObjections.includes(checkbox.value);
+  });
+  const selectedClientTypes = String(values.clientType || '').split(',').map((value) => value.trim()).filter(Boolean);
+  document.querySelectorAll('#manual-entry-form [name^="clientType"]').forEach((checkbox) => {
+    checkbox.checked = selectedClientTypes.includes(checkbox.value);
   });
   updateConditionalFields();
   saveEntryButton.textContent = 'Save changes';
@@ -511,6 +519,10 @@ updateCallDateTime();
 updateDmDateTime();
 
 dateFilter.addEventListener('change', () => {
+  entryRenderLimit = 50;
+  render();
+});
+entrySearch.addEventListener('input', () => {
   entryRenderLimit = 50;
   render();
 });

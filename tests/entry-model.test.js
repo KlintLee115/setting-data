@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const {
   combineEntries,
   normalizeEntryStatus,
+  searchEntriesByName,
   toCallEntry,
   toManualEntry
 } = require('../scripts/entry-model');
@@ -41,4 +42,16 @@ test('normalizes DM outcomes without converting DMs into manual call entries', (
 
   assert.equal(entry.recordType, 'dm');
   assert.equal(entry.status, 'Replied');
+});
+
+test('searches entry lead names case-insensitively using partial matches', () => {
+  const entries = [
+    { name: 'Ayan Hudson' },
+    { fullName: 'Jane Doe' },
+    { name: 'Other Lead' }
+  ];
+
+  assert.deepEqual(searchEntriesByName(entries, '  AYAN '), [entries[0]]);
+  assert.deepEqual(searchEntriesByName(entries, 'doe'), [entries[1]]);
+  assert.deepEqual(searchEntriesByName(entries, ''), entries);
 });

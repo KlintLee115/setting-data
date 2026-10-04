@@ -10,6 +10,15 @@
       return [offset === 0 ? 'GMT' : `GMT${offset > 0 ? '+' : ''}${offset}`, offset === 0 ? 'GMT' : `GMT${offset > 0 ? '+' : ''}${offset}`];
     })
   ];
+  const SOURCE_OPTIONS = [
+    ['', 'Select source'],
+    ['GA Summit Sept Form', 'GA Summit Sept Form'],
+    ['Inbound', 'Inbound'],
+    ['Elective declined', 'Elective declined'],
+    ['Elective approved', 'Elective approved'],
+    ['abandoned aicc', 'abandoned aicc'],
+    ['abandoned agents', 'abandoned agents']
+  ];
   const MESSAGE_VARIANTS = [
     ['followup', 'Use follow-up message'],
     ['standard', 'Use standard message'],
@@ -98,14 +107,14 @@
   function getNoAnswerMessage(variant) {
     const firstName = currentName.trim().split(/\s+/)[0] || 'there';
     if (variant === 'followup') {
-      return `Hey ${firstName}, Klint here from Alicia Lyttle's AI team, did u get my msg?`;
+      return `Heyy ${firstName}, Klint here from Alicia Lyttle's AI team 😊 \n\n did u get my msg?`;
     }
     const eventLine = {
-      form: 'I saw that you filled out the form for the AI Consultancy Certification.',
-      standard: 'I saw that you registered for the AI Marketing Summit.',
+      form: 'I saw that you filled out the form for the AI Consultancy Certification to possibly leverage AI more in your biz, or become an AI consultant.',
+      standard: 'I saw that you registered for the AI Marketing Summit to possibly make more money or have more freedom.',
       build: 'I saw that you signed up for the Build It Launch It challenge.'
     }[variant];
-    const baseMessage = `Hey ${firstName}, this is Klint with Alicia Lyttle's AI team. I just got off a few meetings and ${eventLine}\n\n Just to see if I can get you more out of it as we have a ton of resources, are you looking to implement AI in your business, or are you trying to get into AI?`;
+    const baseMessage = `Heyy ${firstName}, this is Klint with Alicia Lyttle's AI team 😊 \n\n${eventLine}\n\n We are just checking on all the vip members - how did the summit go for you?`;
     if (variant === 'build') {
       return baseMessage;
     }
@@ -256,6 +265,13 @@
     return field;
   }
 
+  function addTextAreaField(container, key, labelText) {
+    const { field, label } = createField('textarea', key, labelText);
+    field.value = callFlow.data[key] || '';
+    container.appendChild(label);
+    return field;
+  }
+
   function addCheckboxField(container, key, labelText) {
     const { field, label } = createField('input', key, labelText, { type: 'checkbox' });
     field.checked = !!callFlow.data[key];
@@ -311,6 +327,7 @@
       return;
     }
     if (callFlow.step === 'dm') {
+      const source = addSelectField(fields, 'source', 'Source', SOURCE_OPTIONS);
       const channel = addSelectField(fields, 'dmChannel', 'Channel', [
         ['', 'Select'],
         ['iMessage', 'iMessage'],
@@ -332,36 +349,57 @@
       ]);
       outcome.value = callFlow.data.dmOutcome || 'Sent';
       actions.append(nextButton('Save DM', () => {
+        if (!source.value) {
+          setOverlayMessage('Select a source before saving.');
+          return;
+        }
         saveDmSafely({
+          source: source.value,
           dmChannel: channel.value,
           dmMessage: message.field.value,
           dmOutcome: outcome.value
         });
       }));
     } else if (callFlow.step === 'message-choice') {
+      const source = addSelectField(fields, 'source', 'Source', SOURCE_OPTIONS);
       const leadTimeZone = addSelectField(fields, 'leadTimeZone', 'Lead timezone', LEAD_TIME_ZONE_OPTIONS);
-      const contactHistory = addSelectField(fields, 'contactHistory', 'Contact history', [['', 'Select'], ['First touch', 'First touch'], ['Contacted before', 'Contacted before']]);
       const heading = document.createElement('div');
       heading.textContent = 'Which message do you want to use?';
       heading.className = 'message-choice-heading';
       fields.appendChild(heading);
       MESSAGE_VARIANTS.forEach(([variant, label]) => {
         actions.append(addMessageChoice(fields, variant, label, () => {
+          if (!source.value) {
+            setOverlayMessage('Select a source before saving.');
+            return;
+          }
           const lastTextMessage = fillNoAnswerMessage(variant);
-          saveCallSafely('No Answer', { leadTimeZone: leadTimeZone.value, contactHistory: contactHistory.value, lastTextMessage });
+          saveCallSafely('No Answer', { source: source.value, leadTimeZone: leadTimeZone.value, lastTextMessage });
         }));
       });
-      actions.append(nextButton('Leave blank', () => saveCallSafely('No Answer', {
-        leadTimeZone: leadTimeZone.value,
-        contactHistory: contactHistory.value
-      })));
+      actions.append(nextButton('Leave blank', () => {
+        if (!source.value) {
+          setOverlayMessage('Select a source before saving.');
+          return;
+        }
+        saveCallSafely('No Answer', {
+          source: source.value,
+          leadTimeZone: leadTimeZone.value
+        });
+      }));
     } else if (callFlow.step === 'qualification') {
+      const source = addSelectField(fields, 'source', 'Source', SOURCE_OPTIONS);
       const leadTimeZone = addSelectField(fields, 'leadTimeZone', 'Lead timezone', LEAD_TIME_ZONE_OPTIONS);
-      const contactHistory = addSelectField(fields, 'contactHistory', 'Contact history', [['', 'Select'], ['First touch', 'First touch'], ['Contacted before', 'Contacted before']]);
+      const intent = addTextAreaField(fields, 'intent', 'Intent (their answer to “What are you looking for?”)');
       const disqualified = addSelectField(fields, 'disqualified', 'Disqualified?', [['', 'Select'], ['Yes', 'Yes'], ['No', 'No']]);
       actions.append(nextButton('Next', () => {
+        if (!source.value) {
+          setOverlayMessage('Select a source before continuing.');
+          return;
+        }
+        callFlow.data.source = source.value;
         callFlow.data.leadTimeZone = leadTimeZone.value;
-        callFlow.data.contactHistory = contactHistory.value;
+        callFlow.data.intent = intent.value;
         callFlow.data.disqualified = disqualified.value;
         callFlow.step = disqualified.value === 'Yes' ? 'disqualification' : 'details';
         renderCallFlow();
@@ -374,14 +412,18 @@
       }));
     } else if (callFlow.step === 'details') {
       const talkTime = addTextField(fields, 'talkTime', 'Talk time (MM:SS)');
-      const talkToListenRatio = addTextField(fields, 'talkToListenRatio', 'Talk to listen ratio');
-      const clientType = addSelectField(fields, 'clientType', 'Client type', [['', 'Select'], ['Business Owner', 'Business Owner'], ['9-5', '9-5'], ['Unemployed', 'Unemployed']]);
+      const clientTypeOptions = [
+        ['9-5', addCheckboxField(fields, 'clientType9to5', '9-5')],
+        ['Business Owner', addCheckboxField(fields, 'clientTypeBusinessOwner', 'Business Owner')]
+      ];
       const objectionCheckboxes = OBJECTION_OPTIONS.map(([key, label]) => [label, addCheckboxField(fields, key, label)]);
       const objectionNotes = addTextField(fields, 'objectionNotes', 'Objection notes (optional)');
       actions.append(nextButton('Next', () => {
         callFlow.data.talkTime = talkTime.value;
-        callFlow.data.talkToListenRatio = talkToListenRatio.value;
-        callFlow.data.clientType = clientType.value;
+        callFlow.data.clientType = clientTypeOptions
+          .filter(([, checkbox]) => checkbox.checked)
+          .map(([label]) => label)
+          .join(', ');
         callFlow.data.objections = objectionCheckboxes
           .filter(([, checkbox]) => checkbox.checked)
           .map(([label]) => label)
@@ -442,6 +484,14 @@
           ...(Array.isArray(stored.callLogs) ? stored.callLogs : []).map((entry) => ({ ...entry, recordType: 'call' })),
           ...(Array.isArray(stored.manualEntries) ? stored.manualEntries : []).map((entry) => ({ ...entry, recordType: 'entry' }))
         ];
+      entries.forEach((entry) => {
+        delete entry.contactHistory;
+        delete entry.hasContactedBefore;
+        delete entry['has contacted before'];
+        delete entry.hasShownIntentBefore;
+        delete entry.shownIntent;
+        delete entry.talkToListenRatio;
+      });
       const timestamp = new Date().toISOString();
       const durationMatch = document.body.innerText.match(/(?:call completed[\s\S]{0,120}?)?(\d{1,2}:\d{2})\s*\/\s*(\d{1,2}:\d{2})/i);
       const call = {
@@ -486,6 +536,14 @@
           ...(Array.isArray(stored.callLogs) ? stored.callLogs : []).map((entry) => ({ ...entry, recordType: 'call' })),
           ...(Array.isArray(stored.manualEntries) ? stored.manualEntries : []).map((entry) => ({ ...entry, recordType: 'entry' }))
         ];
+      entries.forEach((entry) => {
+        delete entry.contactHistory;
+        delete entry.hasContactedBefore;
+        delete entry['has contacted before'];
+        delete entry.hasShownIntentBefore;
+        delete entry.shownIntent;
+        delete entry.talkToListenRatio;
+      });
       entries.push({
         id: `${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}`,
         recordType: 'dm',

@@ -24,13 +24,20 @@ function fakeStorage(initial = {}) {
 
 test('loads the canonical entries format', async () => {
   const storage = fakeStorage({ entries: [
-    { id: 'call', recordType: 'call' },
-    { id: 'manual', recordType: 'entry', phonePickedUp: 'No' }
+    { id: 'call', recordType: 'call', contactHistory: 'First touch', hasContactedBefore: true, hasShownIntentBefore: 'Yes', shownIntent: 'Old value', talkToListenRatio: '70/30' },
+    { id: 'manual', recordType: 'entry', phonePickedUp: 'No', contactHistory: 'Contacted before', 'has contacted before': true }
   ] });
   const result = await createPopupStorage(storage).loadEntries();
 
   assert.equal(result.logs[0].id, 'call');
   assert.equal(result.manualEntries[0].id, 'manual');
+  assert.equal(Object.hasOwn(result.logs[0], 'contactHistory'), false);
+  assert.equal(Object.hasOwn(result.logs[0], 'hasContactedBefore'), false);
+  assert.equal(Object.hasOwn(result.logs[0], 'hasShownIntentBefore'), false);
+  assert.equal(Object.hasOwn(result.logs[0], 'shownIntent'), false);
+  assert.equal(Object.hasOwn(result.logs[0], 'talkToListenRatio'), false);
+  assert.equal(Object.hasOwn(result.manualEntries[0], 'contactHistory'), false);
+  assert.equal(Object.hasOwn(result.manualEntries[0], 'has contacted before'), false);
 });
 
 test('loads legacy split storage and normalizes it when saved', async () => {
@@ -44,6 +51,24 @@ test('loads legacy split storage and normalizes it when saved', async () => {
 
   assert.equal(storage.data.entries[1].status, 'Picked Up');
   assert.equal(storage.data.manualEntries[0].recordType, 'entry');
+});
+
+test('removes legacy contact history from canonical and mirrored storage when saved', async () => {
+  const storage = fakeStorage();
+  const service = createPopupStorage(storage);
+
+  await service.saveEntries(
+    [{ id: 'call', contactHistory: 'First touch', hasContactedBefore: true, hasShownIntentBefore: 'Yes', shownIntent: 'Old value' }],
+    [{ id: 'manual', contactHistory: 'Contacted before', 'has contacted before': true }]
+  );
+
+  assert.equal(Object.hasOwn(storage.data.entries[0], 'contactHistory'), false);
+  assert.equal(Object.hasOwn(storage.data.callLogs[0], 'contactHistory'), false);
+  assert.equal(Object.hasOwn(storage.data.entries[0], 'hasContactedBefore'), false);
+  assert.equal(Object.hasOwn(storage.data.entries[0], 'hasShownIntentBefore'), false);
+  assert.equal(Object.hasOwn(storage.data.entries[0], 'shownIntent'), false);
+  assert.equal(Object.hasOwn(storage.data.manualEntries[0], 'contactHistory'), false);
+  assert.equal(Object.hasOwn(storage.data.entries[1], 'has contacted before'), false);
 });
 
 test('preserves DM record types in canonical storage and compatibility mirrors', async () => {
@@ -61,7 +86,7 @@ test('preserves DM record types in canonical storage and compatibility mirrors',
 test('saves and clears drafts through the storage adapter', async () => {
   const storage = fakeStorage();
   const service = createPopupStorage(storage);
-  await service.saveDraft({ fullName: 'Jane Doe' });
+  await service.saveDraft({ fullName: 'Jane Doe', hasShownIntentBefore: 'Yes', shownIntent: 'Old value' });
   assert.deepEqual(await service.loadDraft(), { fullName: 'Jane Doe' });
   await service.clearDraft();
   assert.equal(await service.loadDraft(), null);

@@ -50,10 +50,10 @@ The call logger captures:
 
 The popup supports a Call/DM selector. Call entries retain the existing progressive stages:
 
-1. Lead information: name, email, phone, lead timezone, and contact history (first touch or contacted before)
+1. Lead information: name, email, phone, lead timezone, and a required source selected from the fixed list
 2. Phone: pickup outcome, call datetime, duration, or last text message for no-answer calls
-3. Qualification: disqualified status and reason
-4. Call details: talk time, talk-to-listen ratio, client type, and objection checkboxes with optional notes
+3. Qualification: the lead’s open-text answer to “What are you looking for?”, and disqualified status/reason
+4. Call details: talk time, client type, and objection checkboxes with optional notes
 5. Pitch: No / Low ticket self close / High ticket booking (High ticket also asks for closer name and appointment date/time)
 6. Notes
 
@@ -72,7 +72,8 @@ The primary unified collection. Each record has a stable `id` and may include:
 - `email`
 - `phone`
 - `leadTimeZone` (selected GMT offset from `GMT-12` through `GMT+14`)
-- `contactHistory` (`First touch` or `Contacted before`)
+- `source` (`GA Summit Sept Form`, `Inbound`, `Elective declined`, `Elective approved`, `abandoned aicc`, or `abandoned agents`)
+- `intent` (the lead’s answer to “What are you looking for?”)
 - `phonePickedUp`
 - `callDateTime`
 - `callDuration`
@@ -80,8 +81,7 @@ The primary unified collection. Each record has a stable `id` and may include:
 - `disqualified`
 - `disqualificationReason`
 - `talkTime`
-- `talkToListenRatio`
-- `clientType`
+- `clientType` (selected `9-5` and/or `Business Owner` checkboxes)
 - `objections` and `objectionNotes`
 - `pitched` (`No`, `Low Ticket`, or `High Ticket`)
 - `closer`
@@ -91,7 +91,7 @@ The primary unified collection. Each record has a stable `id` and may include:
 
 The older `callLogs` and `manualEntries` keys are maintained as compatibility mirrors for existing data and content-script behavior.
 
-The popup does not compute outcome rates or summaries; the XLSX export includes a formula-driven Analysis sheet for the call funnel and breakdowns by contact history and lead timezone.
+The popup does not compute outcome rates or summaries; the XLSX export includes a formula-driven Analysis sheet for the call funnel and breakdowns by lead timezone.
 
 ### Drafts
 
@@ -99,7 +99,7 @@ The popup does not compute outcome rates or summaries; the XLSX export includes 
 
 ## Export
 
-Use **Export XLSX** to download the unified `entries` collection as a local Excel workbook. The `Analysis` sheet summarizes the call funnel and compares results by contact history and recorded lead timezone. Rates show their denominator, stay blank when there is no eligible data, and should be interpreted with sample size in mind. Only timezones present in the export are listed. The `Entries` sheet contains the underlying data, typed date/time values, objection flags, and filterable headers. Analysis formulas recalculate when entries are edited in Excel.
+Use **Export XLSX** to download the unified `entries` collection as a local Excel workbook. The `Analysis` sheet summarizes the call funnel and compares results by recorded lead timezone. Rates show their denominator, stay blank when there is no eligible data, and should be interpreted with sample size in mind. Only timezones present in the export are listed. The `Entries` sheet contains the underlying data, typed date/time values, objection flags, and filterable headers. Analysis formulas recalculate when entries are edited in Excel.
 
 Keep exported files somewhere secure because they may contain names, phone numbers, email addresses, and notes.
 
