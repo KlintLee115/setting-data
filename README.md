@@ -87,7 +87,7 @@ The primary unified collection. Each record has a stable `id` and may include:
 
 The older `callLogs` and `manualEntries` keys are maintained as compatibility mirrors for existing data and content-script behavior.
 
-The popup does not compute outcome rates or summaries; the XLSX export includes a formula-driven Analysis sheet for the call funnel.
+The popup does not compute outcome rates or summaries; the XLSX export includes a formula-driven Dashboard sheet.
 
 ### Drafts
 
@@ -96,6 +96,46 @@ The popup does not compute outcome rates or summaries; the XLSX export includes 
 ## Export
 
 Use **Export XLSX** to download the unified `entries` collection as a local Excel workbook. The `Analysis` sheet summarizes the call funnel. Rates show their denominator, stay blank when there is no eligible data, and should be interpreted with sample size in mind. The `Entries` sheet contains the underlying data, typed date/time values, objection flags, and filterable headers. Analysis formulas recalculate when entries are edited in Excel.
+
+Keep exported files somewhere secure because they may contain names, phone numbers, email addresses, and notes.
+
+## Privacy
+
+- No external server calls
+- No GoHighLevel API calls
+- No AI processing
+- No analytics or telemetry
+- Data stays in Chrome extension storage on the local browser profile
+
+Anyone with access to the Chrome profile may be able to access the extension data. Handle XLSX exports carefully because they contain potentially sensitive lead information.
+
+## Project Files
+
+- `manifest.json`: Chrome extension configuration
+- `popup.html`: Dashboard and data-entry interface
+- `scripts/content.js`: GoHighLevel page detection, floating logger, and local call persistence
+- `scripts/popup.js`: Popup state, form handling, and editing
+- `scripts/popup-data-transfer.js`: XLSX export
+- `scripts/popup-settings.js`: Local date and time helpers
+- `scripts/entry-model.js`: Entry status normalization and record shaping
+- `scripts/objection-options.js`: Shared objection checkbox options used by the call logger and popup form
+- `scripts/popup-storage.js`: Chrome storage access, migration, and draft persistence
+- `scripts/entry-view.js`: Entry table rendering and row actions
+- `scripts/timezone.js`: Local date/time conversion and formatting
+- `tests/`: Local date/time, entry-model, and content-script behavior tests
+
+## Development
+
+Install the development dependency and run the full check before opening a pull request:
+
+```powershell
+npm ci
+npm run check
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the local workflow and manual extension smoke test.
+
+The browser extension loads JavaScript from `scripts/`. `npm run check` runs the test suite.The Dashboard sheet has KPI cards, call and DM funnels, a 12-week trend, pickup rate by time of day and weekday, objection and client-type breakdowns, and quick reads, using in-cell bars and color scales (no native charts). Small samples show <5 instead of a rate. The Entries sheet holds the underlying data (frozen header, filters, dates in local time, objection flags, and helper columns for week, hour and weekday). Definitions explains each metric. Formulas recalculate when entries are edited in Excel (up to 5,000 rows). The export uses a bundled ExcelJS build in scripts/vendor/.
 
 Keep exported files somewhere secure because they may contain names, phone numbers, email addresses, and notes.
 

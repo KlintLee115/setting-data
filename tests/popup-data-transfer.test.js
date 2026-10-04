@@ -1,11 +1,22 @@
-const test = require('node:test');
+﻿const test = require('node:test');
 const assert = require('node:assert/strict');
-global.XLSX = require('xlsx');
+global.ExcelJS = require('exceljs');
 
 require('../scripts/popup-data-transfer');
 const { buildWorkbook, durationToSeconds } = global.popupDataTransfer;
 
-test('builds an analysis-friendly workbook with typed dates and separate objection flags', () => {
+function entriesTable(workbook) {
+  const sheet = workbook.getWorksheet('Entries');
+  const headers = sheet.getRow(1).values.slice(1);
+  const row = sheet.getRow(2);
+  const value = (header) => {
+    const cell = row.getCell(headers.indexOf(header) + 1).value;
+    return cell === undefined ? null : cell;
+  };
+  return { sheet, headers, value };
+}
+
+test('builds a dashboard workbook with typed Entries data', async () => {
   const workbook = buildWorkbook([{
     recordType: 'entry',
     fullName: 'Jane Doe',
@@ -15,42 +26,36 @@ test('builds an analysis-friendly workbook with typed dates and separate objecti
     callDateTime: '2026-09-28T14:30:00.000Z',
     callDuration: '02:15',
     talkTime: '1:05',
-    talkToListenRatio: '70/30',
     objections: 'Partner, Had to go',
     pitched: 'High Ticket',
     appointmentDate: '2026-10-01T16:00:00.000Z'
   }]);
-  const sheet = workbook.Sheets.Entries;
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-  const headers = rows[0];
-  const row = rows[1];
-  const column = (header) => headers.indexOf(header);
+  const { sheet, headers, value } = entriesTable(workbook);
 
-  assert.deepEqual(workbook.SheetNames, ['Analysis', 'Entries']);
-  assert.equal(row[column('Lead name')], 'Jane Doe');
-  assert.equal(row[column('Intent')], 'Use AI to grow an existing business');
-  assert.equal(column('Contact history'), -1);
-  assert.equal(row[column('Call duration (seconds)')], 135);
-  assert.equal(row[column('Talk time (seconds)')], 65);
-  assert.equal(column('Talk-to-listen ratio'), -1);
-  assert.equal(row[column('Objection: Partner')], true);
-  assert.equal(row[column('Objection: Had to go')], true);
-  assert.equal(row[column('Objection: Not interested')], false);
-  assert.equal(sheet['!autofilter'].ref, sheet['!ref']);
-  assert.equal(sheet[XLSX.utils.encode_cell({ r: 1, c: column('Call date/time') })].t, 'd');
+  assert.deepEqual(workbook.worksheets.map((s) => s.name), ['Dashboard', 'Entries', 'Definitions']);
+  assert.equal(value('Lead name'), 'Jane Doe');
+  assert.equal(value('Call duration (seconds)'), 135);
+  assert.equal(value('Talk time (seconds)'), 65);
+  assert.equal(value('Objection: Partner'), true);
+  assert.equal(value('Objection: Not interested'), false);
+  assert.ok(value('Call date/time') instanceof Date);
+  assert.ok(value('Week starting (Mon)') instanceof Date);
+  assert.equal(value('Week starting (Mon)').getUTCDay(), 1);
+  assert.equal(headers.includes('Call weekday'), true);
+  assert.equal(sheet.views[0].state, 'frozen');
+  assert.equal(sheet.autoFilter.to.column, headers.length);
 
-  const fileBytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-  const reopened = XLSX.read(fileBytes, { type: 'buffer', cellDates: true, cellNF: true });
-  const reopenedSheet = reopened.Sheets.Entries;
-  const reopenedRows = XLSX.utils.sheet_to_json(reopenedSheet, { header: 1 });
-  assert.equal(reopenedRows[1][column('Call duration (seconds)')], 135);
-  assert.equal(reopenedRows[1][column('Objection: Partner')], true);
-  assert.equal(reopenedSheet['!autofilter'].ref, 'A1:AD2');
+  const dashboard = workbook.getWorksheet('Dashboard');
+  assert.match(dashboard.getCell('D11').value.formula, /^COUNTIFS\(Entries!\$A\$2:\$A\$5001,"<>DM"/);
+  assert.equal(dashboard.getCell('E12').value.formula, 'IF(D11=0,"",D12/D11)');
+  assert.equal(dashboard.getCell('B72').value.formula.includes('Top objection'), true);
+  assert.equal(workbook.calcProperties.fullCalcOnLoad, true);
 
-  const analysis = reopened.Sheets.Analysis;
-  assert.equal(analysis.B5.f, 'COUNTIF(Entries!$I:$I,"Yes")+COUNTIF(Entries!$I:$I,"No")');
-  assert.equal(analysis.C6.f, 'IF(B5=0,"",B6/B5)');
-  assert.equal(analysis.C6.z, '0.0%');
+  const buffer = await workbook.xlsx.writeBuffer();
+  const reopened = new ExcelJS.Workbook();
+  await reopened.xlsx.load(buffer);
+  assert.deepEqual(reopened.worksheets.map((s) => s.name), ['Dashboard', 'Entries', 'Definitions']);
+  assert.equal(reopened.getWorksheet('Entries').getRow(2).getCell(1).value, 'Manual');
 });
 
 test('converts supported duration values to seconds', () => {
@@ -68,16 +73,15 @@ test('exports DM activity fields with a distinct record type', () => {
     dmDateTime: '2026-09-29T14:00:00.000Z',
     dmChannel: 'Instagram',
     dmOutcome: 'Replied',
-    dmMessage: 'Are you still exploring this?'
+    dmMessage: 'Are you still exploring this?',
+    dmResponse: 'Yes!'
   }]);
-  const rows = XLSX.utils.sheet_to_json(workbook.Sheets.Entries, { header: 1 });
-  const headers = rows[0];
-  const row = rows[1];
-  const column = (header) => headers.indexOf(header);
+  const { value } = entriesTable(workbook);
 
-  assert.equal(row[column('Record type')], 'DM');
-  assert.equal(row[column('Lead name')], 'Jordan Lee');
-  assert.equal(row[column('DM channel')], 'Instagram');
-  assert.equal(row[column('DM outcome')], 'Replied');
-  assert.equal(row[column('DM message')], 'Are you still exploring this?');
+  assert.equal(value('Record type'), 'DM');
+  assert.equal(value('Lead name'), 'Jordan Lee');
+  assert.equal(value('DM channel'), 'Instagram');
+  assert.equal(value('DM outcome'), 'Replied');
+  assert.equal(value('Lead replied?'), 'Yes');
+  assert.equal(value('Call date/time'), null);
 });
