@@ -307,7 +307,11 @@
         callFlow = { step: 'dm', data: {} };
         renderCallFlow();
       });
-      actions.append(pickedUp, noAnswer, logDm);
+      const leadResponded = nextButton('Lead responded', () => {
+        callFlow = { step: 'response', data: {} };
+        renderCallFlow();
+      });
+      actions.append(pickedUp, noAnswer, logDm, leadResponded);
       return;
     }
     if (callFlow.step === 'dm') {
@@ -339,6 +343,16 @@
           dmChannel: channel.value,
           dmMessage: message.field.value,
           dmOutcome: outcome.value
+        });
+      }));
+    } else if (callFlow.step === 'response') {
+      const response = addTextAreaField(fields, 'dmResponse', 'Lead response');
+      const responseDateTime = addTextField(fields, 'responseDateTime', 'Response date/time (blank = now)', 'datetime-local');
+      actions.append(nextButton('Save response', () => {
+        saveLeadResponseSafely({
+          dmResponse: response.value,
+          dmOutcome: 'Replied',
+          responseDateTime: responseDateTime.value ? new Date(responseDateTime.value).toISOString() : ''
         });
       }));
     } else if (callFlow.step === 'message-choice') {
@@ -431,29 +445,7 @@
     try {
       const callDateTime = getLocalDateTimeValue();
       publishLeadSafely(currentName, callDateTime);
-      const stored = await withStorageRetry((storage) => storage.get({ entries: [], callLogs: [], manualEntries: [] }));
-      const entries = Array.isArray(stored.entries) && stored.entries.length
-        ? stored.entries
-        : [
-          ...(Array.isArray(stored.callLogs) ? stored.callLogs : []).map((entry) => ({ ...entry, recordType: 'call' })),
-          ...(Array.isArray(stored.manualEntries) ? stored.manualEntries : []).map((entry) => ({ ...entry, recordType: 'entry' }))
-        ];
-      entries.forEach((entry) => {
-        delete entry.contactHistory;
-        delete entry.hasContactedBefore;
-        delete entry['has contacted before'];
-        delete entry.hasShownIntentBefore;
-        delete entry.shownIntent;
-        delete entry.talkToListenRatio;
-        const legacyNotes = [entry.disqualificationReason, entry.objectionNotes].filter(Boolean).join(' | ');
-        if (legacyNotes) {
-          entry.notes = [entry.notes, legacyNotes].filter(Boolean).join(' | ');
-        }
-        delete entry.objectionNotes;
-        delete entry.disqualified;
-        delete entry.leadTimeZone;
-        delete entry.disqualificationReason;
-      });
+      const entries = await loadEntriesForSave();
       const timestamp = new Date().toISOString();
       const durationMatch = document.body.innerText.match(/(?:call completed[\s\S]{0,120}?)?(\d{1,2}:\d{2})\s*\/\s*(\d{1,2}:\d{2})/i);
       const call = {
@@ -482,6 +474,95 @@
     }
   }
 
+  async function loadEntriesForSave() {
+    const stored = await withStorageRetry((storage) => storage.get({ entries: [], callLogs: [], manualEntries: [] }));
+    const entries = Array.isArray(stored.entries) && stored.entries.length
+      ? stored.entries
+      : [
+        ...(Array.isArray(stored.callLogs) ? stored.callLogs : []).map((entry) => ({ ...entry, recordType: 'call' })),
+        ...(Array.isArray(stored.manualEntries) ? stored.manualEntries : []).map((entry) => ({ ...entry, recordType: 'entry' }))
+      ];
+    entries.forEach((entry) => {
+      delete entry.contactHistory;
+      delete entry.hasContactedBefore;
+      delete entry['has contacted before'];
+      delete entry.hasShownIntentBefore;
+      delete entry.shownIntent;
+      delete entry.talkToListenRatio;
+      const legacyNotes = [entry.disqualificationReason, entry.objectionNotes].filter(Boolean).join(' | ');
+      if (legacyNotes) {
+        entry.notes = [entry.notes, legacyNotes].filter(Boolean).join(' | ');
+      }
+      delete entry.objectionNotes;
+      delete entry.disqualified;
+      delete entry.leadTimeZone;
+      delete entry.disqualificationReason;
+    });
+    return entries;
+  }
+
+  async function persistEntries(entries) {
+    await withStorageRetry((storage) => storage.set({
+      entries,
+      callLogs: entries.filter((entry) => entry.recordType === 'call'),
+      manualEntries: entries.filter((entry) => entry.recordType !== 'call')
+    }));
+  }
+
+  async function saveLeadResponse(details) {
+    if (!currentName || saveInProgress) {
+      return;
+    }
+    saveInProgress = true;
+
+    try {
+      const timestamp = new Date().toISOString();
+      publishLeadSafely(currentName);
+      const entries = await loadEntriesForSave();
+      const leadName = normalizeName(currentName);
+      const lastDm = [...entries].reverse().find((entry) => entry.recordType === 'dm' && normalizeName(entry.name) === leadName);
+      if (lastDm) {
+        Object.assign(lastDm, {
+          dmResponse: details.dmResponse,
+          dmOutcome: details.dmOutcome,
+          status: details.dmOutcome,
+          responseDateTime: details.responseDateTime || timestamp
+        });
+      } else {
+        entries.push({
+          id: `${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}`,
+          recordType: 'dm',
+          name: currentName,
+          sourceUrl: window.location.href,
+          status: details.dmOutcome,
+          dmDateTime: timestamp,
+          timestamp,
+          ...details,
+          responseDateTime: details.responseDateTime || timestamp
+        });
+      }
+      await persistEntries(entries);
+      overlayVisible = false;
+      callFlow = null;
+      renderOverlay();
+    } finally {
+      saveInProgress = false;
+    }
+  }
+
+  function saveLeadResponseSafely(details) {
+    void Promise.resolve()
+      .then(() => saveLeadResponse(details))
+      .catch((error) => {
+        if (!isExtensionContextError(error)) {
+          console.error('Could not save lead response:', error);
+        }
+        setOverlayMessage(isExtensionContextError(error)
+          ? 'Extension reloaded. Refresh this tab, then try again.'
+          : 'Could not save lead response. Try again.');
+      });
+  }
+
   async function saveDm(details = {}) {
     if (!currentName || saveInProgress) {
       return;
@@ -491,29 +572,7 @@
     try {
       const timestamp = new Date().toISOString();
       publishLeadSafely(currentName);
-      const stored = await withStorageRetry((storage) => storage.get({ entries: [], callLogs: [], manualEntries: [] }));
-      const entries = Array.isArray(stored.entries) && stored.entries.length
-        ? stored.entries
-        : [
-          ...(Array.isArray(stored.callLogs) ? stored.callLogs : []).map((entry) => ({ ...entry, recordType: 'call' })),
-          ...(Array.isArray(stored.manualEntries) ? stored.manualEntries : []).map((entry) => ({ ...entry, recordType: 'entry' }))
-        ];
-      entries.forEach((entry) => {
-        delete entry.contactHistory;
-        delete entry.hasContactedBefore;
-        delete entry['has contacted before'];
-        delete entry.hasShownIntentBefore;
-        delete entry.shownIntent;
-        delete entry.talkToListenRatio;
-        const legacyNotes = [entry.disqualificationReason, entry.objectionNotes].filter(Boolean).join(' | ');
-        if (legacyNotes) {
-          entry.notes = [entry.notes, legacyNotes].filter(Boolean).join(' | ');
-        }
-        delete entry.objectionNotes;
-        delete entry.disqualified;
-        delete entry.leadTimeZone;
-        delete entry.disqualificationReason;
-      });
+      const entries = await loadEntriesForSave();
       entries.push({
         id: `${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}`,
         recordType: 'dm',

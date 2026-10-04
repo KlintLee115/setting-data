@@ -31,7 +31,8 @@ const ANALYSIS_COLUMNS = [
   ['DM channel', (entry) => entry.dmChannel || ''],
   ['DM outcome', (entry) => entry.dmOutcome || ''],
   ['DM message', (entry) => entry.dmMessage || ''],
-  ['DM response', (entry) => entry.dmResponse || '']
+  ['DM response', (entry) => entry.dmResponse || ''],
+  ['Response date/time', (entry) => toExcelDate(entry.responseDateTime)]
 ];
 
 // Helper to convert column index (0-based) to Excel Column Letter (A, B, C... AA)
@@ -139,7 +140,7 @@ function buildWorkbook(entries) {
   ];
   const worksheet = XLSX.utils.aoa_to_sheet(rows, { cellDates: true });
   const range = XLSX.utils.decode_range(worksheet['!ref']);
-  const dateColumns = ['Call date/time', 'Appointment date/time'];
+  const dateColumns = ['Call date/time', 'Appointment date/time', 'Response date/time'];
 
   for (let row = 1; row <= range.e.r; row += 1) {
     for (const header of dateColumns) {

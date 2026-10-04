@@ -135,6 +135,7 @@ function loadContentScript(storageGetError, storageSetError, composerMode = 'tex
   return {
     clickNoAnswer: () => actions.children[1].click(),
     clickPickedUp: () => actions.children[0].click(),
+    clickLeadResponded: () => actions.children[3].click(),
     clickDm: () => actions.children[2].click(),
     clickCancel: () => cancelButton.click(),
     actionCount: () => actions.children.length,
@@ -344,6 +345,30 @@ test('logs a DM as a separate activity without call-only fields', async () => {
   assert.equal(saved.status, 'Sent');
   assert.equal(saved.phonePickedUp, undefined);
   assert.equal(saved.callDateTime, undefined);
+});
+
+test('lead responded asks only for the response and updates the last DM', async () => {
+  const logger = loadContentScript();
+
+  logger.clickDm();
+  logger.clickAction(4);
+  await flushPromises();
+
+  const again = loadContentScript();
+  again.clickLeadResponded();
+  assert.deepEqual(again.actionLabels(), ['Save response']);
+  assert.equal(again.field('dmOutcome'), undefined);
+  again.field('dmResponse').value = 'Not AI btw lol';
+  again.field('responseDateTime').value = '2026-10-03T15:58';
+  again.clickAction();
+  await flushPromises();
+
+  const saved = again.storageCalls.at(-1)[0].entries.at(-1);
+  assert.equal(saved.recordType, 'dm');
+  assert.equal(saved.dmResponse, 'Not AI btw lol');
+  assert.equal(saved.dmOutcome, 'Replied');
+  assert.equal(saved.status, 'Replied');
+  assert.equal(saved.responseDateTime, new Date('2026-10-03T15:58').toISOString());
 });
 
 test('picked-up follows the form flow and saves appointment details', async () => {
