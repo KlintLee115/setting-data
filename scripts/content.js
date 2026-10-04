@@ -78,6 +78,16 @@
     return heading || '';
   }
 
+  function getDetectedLeadTimeZone() {
+    const element = document.querySelector('[id="contact.timezone"] .hr-base-selection-overlay__wrapper');
+    const match = /^GMT([+-])(\d{2}):(\d{2})/.exec(normalizeName(element?.textContent || ''));
+    if (!match || match[3] !== '00') {
+      return '';
+    }
+    const hours = Number(match[2]);
+    return hours === 0 ? 'GMT' : `GMT${match[1]}${hours}`;
+  }
+
   function getContactKey(name) {
     return `${window.location.pathname}|${window.location.search}|${name.toLowerCase()}`;
   }
@@ -315,7 +325,7 @@
       const pickedUp = nextButton('Picked up', () => startCallFlow());
       pickedUp.className = 'picked-up';
       const noAnswer = nextButton('No answer', () => {
-        callFlow = { step: 'message-choice', data: {} };
+        callFlow = { step: 'message-choice', data: { leadTimeZone: getDetectedLeadTimeZone() } };
         renderCallFlow();
       });
       noAnswer.className = 'no-answer';
@@ -457,7 +467,7 @@
   }
 
   function startCallFlow() {
-    callFlow = { step: 'qualification', data: {} };
+    callFlow = { step: 'qualification', data: { leadTimeZone: getDetectedLeadTimeZone() } };
     renderCallFlow();
   }
 
