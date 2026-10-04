@@ -7,7 +7,6 @@ const ANALYSIS_COLUMNS = [
   ['Lead name', (entry) => entry.name || entry.fullName],
   ['Email', (entry) => entry.email || ''],
   ['Phone', (entry) => entry.phone || ''],
-  ['Lead timezone', (entry) => entry.leadTimeZone || ''],
   ['Intent', (entry) => entry.intent || ''],
   ['Outcome', (entry) => entry.status || ''],
   ['Call date/time', (entry) => entry.recordType === 'dm' ? '' : toExcelDate(entry.callDateTime || entry.timestamp || entry.createdAt)],
@@ -87,7 +86,6 @@ function buildAnalysisWorksheet(entries) {
   // Dynamically pull column letters for Entries sheet
   const colPickedUp = getColumnLetter('Picked up?');
   const colPitchOutcome = getColumnLetter('Pitch outcome');
-  const colTimezone = getColumnLetter('Lead timezone');
 
   const rows = [
     ['Call analysis'],
@@ -100,23 +98,8 @@ function buildAnalysisWorksheet(entries) {
     ['Pitched conversations', '', '', 'Qualified conversations'],
     ['High-ticket appointments', '', '', 'Qualified conversations'],
     ['Low-ticket outcomes', '', '', 'Qualified conversations'],
-    [],
-    ['By lead timezone'],
-    ['Lead timezone', 'Attempts', 'Pickups', 'Pickup rate', 'Qualified', 'High-ticket appointments', 'Booking rate']
   ];
 
-  // Extract unique timezones
-  const timezones = [...new Set(entries.map((entry) => entry.leadTimeZone).filter(Boolean))];
-  const getOffset = (timezone) => timezone === 'GMT' ? 0 : /^GMT([+-]\d+)$/.exec(timezone)?.[1];
-  timezones.sort((left, right) => {
-    const leftOffset = getOffset(left);
-    const rightOffset = getOffset(right);
-    return leftOffset !== undefined && rightOffset !== undefined
-      ? Number(leftOffset) - Number(rightOffset)
-      : left.localeCompare(right);
-  });
-  timezones.push('Not recorded');
-  rows.push(...timezones.map((timezone) => [timezone]));
 
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
 
@@ -142,17 +125,6 @@ function buildAnalysisWorksheet(entries) {
     [10, 'IF(B7=0,"",B10/B7)']
   ].forEach(([row, formula]) => setFormula(worksheet, `C${row}`, formula, '0.0%'));
 
-  // Timezone Breakdowns (Row 14+)
-  timezones.forEach((timezone, index) => {
-    const row = 14 + index;
-    const criteria = `Entries!$${colTimezone}:$${colTimezone},"${timezone === 'Not recorded' ? '' : timezone}"`;
-    setFormula(worksheet, `B${row}`, `COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"Yes")+COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"No")`);
-    setFormula(worksheet, `C${row}`, `COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"Yes")`);
-    setFormula(worksheet, `D${row}`, `IF(B${row}=0,"",C${row}/B${row})`, '0.0%');
-    setFormula(worksheet, `E${row}`, `COUNTIFS(${criteria},Entries!$${colPickedUp}:$${colPickedUp},"Yes")`);
-    setFormula(worksheet, `F${row}`, `COUNTIFS(${criteria},Entries!$${colPitchOutcome}:$${colPitchOutcome},"High Ticket")`);
-    setFormula(worksheet, `G${row}`, `IF(E${row}=0,"",F${row}/E${row})`, '0.0%');
-  });
 
   worksheet['!cols'] = [
     { wch: 30 }, { wch: 14 }, { wch: 16 }, { wch: 22 }, { wch: 14 }, { wch: 26 }, { wch: 18 }

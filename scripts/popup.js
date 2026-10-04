@@ -208,7 +208,6 @@ function getEntryFormData(form) {
   const fullName = formData.get('fullName').trim();
   const email = formData.get('email').trim();
   const phone = formData.get('phone').trim();
-  const leadTimeZone = formData.get('leadTimeZone').trim();
   const notes = formData.get('notes').trim();
   if (activityType === 'dm') {
     const dmDateTime = formData.get('dmDateTime');
@@ -217,7 +216,6 @@ function getEntryFormData(form) {
       fullName,
       email,
       phone,
-      leadTimeZone,
       recordType: 'dm',
       dmChannel: formData.get('dmChannel'),
       dmOutcome,
@@ -250,7 +248,6 @@ function getEntryFormData(form) {
     fullName,
     email,
     phone,
-    leadTimeZone,
     intent: formData.get('intent').trim(),
     phonePickedUp,
     callDateTime: formData.get('callDateTime'),

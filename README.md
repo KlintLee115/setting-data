@@ -50,7 +50,7 @@ The call logger captures:
 
 The popup supports a Call/DM selector. Call entries retain the existing progressive stages:
 
-1. Lead information: name, email, phone, lead timezone
+1. Lead information: name, email, phone
 2. Phone: pickup outcome, call datetime, duration, or last text message for no-answer calls
 3. Qualification: the lead’s open-text answer to “What are you looking for?”
 4. Call details: talk time, client type, and objection checkboxes with optional notes
@@ -71,7 +71,6 @@ The primary unified collection. Each record has a stable `id` and may include:
 - `fullName` or `name`
 - `email`
 - `phone`
-- `leadTimeZone` (selected GMT offset from `GMT-12` through `GMT+14`)
 - `intent` (the lead’s answer to “What are you looking for?”)
 - `phonePickedUp`
 - `callDateTime`
@@ -88,7 +87,7 @@ The primary unified collection. Each record has a stable `id` and may include:
 
 The older `callLogs` and `manualEntries` keys are maintained as compatibility mirrors for existing data and content-script behavior.
 
-The popup does not compute outcome rates or summaries; the XLSX export includes a formula-driven Analysis sheet for the call funnel and breakdowns by lead timezone.
+The popup does not compute outcome rates or summaries; the XLSX export includes a formula-driven Analysis sheet for the call funnel.
 
 ### Drafts
 
@@ -96,7 +95,7 @@ The popup does not compute outcome rates or summaries; the XLSX export includes 
 
 ## Export
 
-Use **Export XLSX** to download the unified `entries` collection as a local Excel workbook. The `Analysis` sheet summarizes the call funnel and compares results by recorded lead timezone. Rates show their denominator, stay blank when there is no eligible data, and should be interpreted with sample size in mind. Only timezones present in the export are listed. The `Entries` sheet contains the underlying data, typed date/time values, objection flags, and filterable headers. Analysis formulas recalculate when entries are edited in Excel.
+Use **Export XLSX** to download the unified `entries` collection as a local Excel workbook. The `Analysis` sheet summarizes the call funnel. Rates show their denominator, stay blank when there is no eligible data, and should be interpreted with sample size in mind. The `Entries` sheet contains the underlying data, typed date/time values, objection flags, and filterable headers. Analysis formulas recalculate when entries are edited in Excel.
 
 Keep exported files somewhere secure because they may contain names, phone numbers, email addresses, and notes.
 

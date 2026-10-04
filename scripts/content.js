@@ -3,13 +3,6 @@
   const POLL_INTERVAL = 750;
   const STORAGE_RETRY_DELAYS = [250, 1000];
   const PENDING_LEAD_KEY = 'pendingLead';
-  const LEAD_TIME_ZONE_OPTIONS = [
-    ['', 'Select'],
-    ...Array.from({ length: 27 }, (_, index) => {
-      const offset = index - 12;
-      return [offset === 0 ? 'GMT' : `GMT${offset > 0 ? '+' : ''}${offset}`, offset === 0 ? 'GMT' : `GMT${offset > 0 ? '+' : ''}${offset}`];
-    })
-  ];
   const MESSAGE_VARIANTS = [
     ['followup', 'Use follow-up message'],
     ['standard', 'Use standard message'],
@@ -67,16 +60,6 @@
       .find((text) => text && text.length <= 120 && isLikelyLeadName(text));
 
     return heading || '';
-  }
-
-  function getDetectedLeadTimeZone() {
-    const element = document.querySelector('[id="contact.timezone"] .hr-base-selection-overlay__wrapper');
-    const match = /^GMT([+-])(\d{2}):(\d{2})/.exec(normalizeName(element?.textContent || ''));
-    if (!match || match[3] !== '00') {
-      return '';
-    }
-    const hours = Number(match[2]);
-    return hours === 0 ? 'GMT' : `GMT${match[1]}${hours}`;
   }
 
   function getContactKey(name) {
@@ -316,7 +299,7 @@
       const pickedUp = nextButton('Picked up', () => startCallFlow());
       pickedUp.className = 'picked-up';
       const noAnswer = nextButton('No answer', () => {
-        callFlow = { step: 'message-choice', data: { leadTimeZone: getDetectedLeadTimeZone() } };
+        callFlow = { step: 'message-choice', data: {} };
         renderCallFlow();
       });
       noAnswer.className = 'no-answer';
@@ -359,7 +342,6 @@
         });
       }));
     } else if (callFlow.step === 'message-choice') {
-      const leadTimeZone = addSelectField(fields, 'leadTimeZone', 'Lead timezone', LEAD_TIME_ZONE_OPTIONS);
       const heading = document.createElement('div');
       heading.textContent = 'Which message do you want to use?';
       heading.className = 'message-choice-heading';
@@ -367,19 +349,15 @@
       MESSAGE_VARIANTS.forEach(([variant, label]) => {
         actions.append(addMessageChoice(fields, variant, label, () => {
           const lastTextMessage = fillNoAnswerMessage(variant);
-          saveCallSafely('No Answer', { leadTimeZone: leadTimeZone.value, lastTextMessage });
+          saveCallSafely('No Answer', { lastTextMessage });
         }));
       });
       actions.append(nextButton('Leave blank', () => {
-        saveCallSafely('No Answer', {
-          leadTimeZone: leadTimeZone.value
-        });
+        saveCallSafely('No Answer');
       }));
     } else if (callFlow.step === 'qualification') {
-      const leadTimeZone = addSelectField(fields, 'leadTimeZone', 'Lead timezone', LEAD_TIME_ZONE_OPTIONS);
       const intent = addTextAreaField(fields, 'intent', 'Intent (their answer to "What are you looking for?")');
       actions.append(nextButton('Next', () => {
-        callFlow.data.leadTimeZone = leadTimeZone.value;
         callFlow.data.intent = intent.value;
         callFlow.step = 'details';
         renderCallFlow();
@@ -433,7 +411,7 @@
   }
 
   function startCallFlow() {
-    callFlow = { step: 'qualification', data: { leadTimeZone: getDetectedLeadTimeZone() } };
+    callFlow = { step: 'qualification', data: {} };
     renderCallFlow();
   }
 
@@ -473,6 +451,7 @@
         }
         delete entry.objectionNotes;
         delete entry.disqualified;
+        delete entry.leadTimeZone;
         delete entry.disqualificationReason;
       });
       const timestamp = new Date().toISOString();
@@ -532,6 +511,7 @@
         }
         delete entry.objectionNotes;
         delete entry.disqualified;
+        delete entry.leadTimeZone;
         delete entry.disqualificationReason;
       });
       entries.push({
