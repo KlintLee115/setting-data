@@ -62,7 +62,7 @@
   const save = () => store.set({ messages });
 
   const panel = document.createElement('div');
-  panel.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483647;display:flex;flex-direction:column;gap:6px;width:200px;padding:8px;background:#fff;border:1px solid #d5dbe5;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.18);font:12px Arial,sans-serif;color:#222;';
+  panel.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483647;display:flex;flex-direction:column;gap:6px;width:220px;max-width:calc(100vw - 32px);padding:8px;box-sizing:border-box;background:#fff;border:1px solid #d5dbe5;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.18);font:12px Arial,sans-serif;color:#222;';
   document.body.appendChild(panel);
 
   const style = (el, css) => { el.style.cssText = css; return el; };
@@ -70,22 +70,51 @@
   const BTN = 'padding:6px 10px;border:1px solid #245a95;border-radius:5px;background:#fff;color:#245a95;cursor:pointer;text-align:left;';
   const FIELD = 'width:100%;box-sizing:border-box;padding:4px;border:1px solid #c5ccd8;border-radius:4px;font:12px Arial,sans-serif;';
   let adding = false, status = '';
+  let activeView = 'tracker';
+  let lastLeadName = '';
+  const nav = make('div', 'display:flex;gap:6px;');
+  const messagesTab = make('button', BTN + 'flex:1;text-align:center;', 'Messages');
+  const trackerTab = make('button', BTN + 'flex:1;text-align:center;', 'Tracker');
+  messagesTab.type = trackerTab.type = 'button';
+  messagesTab.onclick = () => { activeView = 'messages'; render(); };
+  trackerTab.onclick = () => { activeView = 'tracker'; render(); };
+  nav.append(messagesTab, trackerTab);
+  const messageView = make('div', 'display:flex;flex-direction:column;gap:6px;');
+  const trackerFrame = make('iframe', 'display:none;width:100%;height:min(72vh,680px);min-height:420px;border:0;border-radius:6px;background:#111827;');
+  trackerFrame.title = 'Setting Tracker';
+  trackerFrame.src = chrome.runtime.getURL('tracker/index.html');
+  trackerFrame.addEventListener('load', () => sendLeadName(true));
+  panel.append(nav, messageView, trackerFrame);
+
+  function sendLeadName(force = false) {
+    const name = getLeadName();
+    if (!force && name === lastLeadName && trackerFrame.contentWindow) return;
+    lastLeadName = name;
+    trackerFrame.contentWindow?.postMessage({ type: 'setting-tracker:lead', name }, '*');
+  }
 
   function render() {
-    panel.textContent = '';
+    const showingTracker = activeView === 'tracker';
+    panel.style.width = showingTracker ? 'min(380px, calc(100vw - 32px))' : '220px';
+    panel.style.maxHeight = showingTracker ? 'calc(100vh - 32px)' : '';
+    messagesTab.style.background = showingTracker ? '#fff' : '#e9f1fa';
+    trackerTab.style.background = showingTracker ? '#e9f1fa' : '#fff';
+    messageView.style.display = showingTracker ? 'none' : 'flex';
+    trackerFrame.style.display = showingTracker ? 'block' : 'none';
+    messageView.textContent = '';
     messages.forEach((m, i) => {
       const use = make('button', BTN, m.label);
       use.type = 'button';
       use.title = buildMessage(m.text);
       use.onclick = () => { status = fillComposer(buildMessage(m.text)) ? '' : 'Open a conversation first.'; render(); };
-      panel.appendChild(use);
+      messageView.appendChild(use);
     });
-    if (status) panel.appendChild(make('div', 'color:#9b3034;', status));
+    if (status) messageView.appendChild(make('div', 'color:#9b3034;', status));
     if (!adding) {
       const add = make('button', BTN + 'border-style:dashed;', '+ Add message');
       add.type = 'button';
       add.onclick = () => { adding = true; status = ''; render(); };
-      panel.appendChild(add);
+      messageView.appendChild(add);
       return;
     }
     const label = make('input', FIELD); label.placeholder = 'Button name';
@@ -99,12 +128,24 @@
       adding = false; save(); render();
     };
     cancel.onclick = () => { adding = false; render(); };
-    panel.append(label, text, ok, cancel);
+    messageView.append(label, text, ok, cancel);
     label.focus();
   }
+
+  let leadUpdateQueued = false;
+  const queueLeadUpdate = () => {
+    if (leadUpdateQueued) return;
+    leadUpdateQueued = true;
+    requestAnimationFrame(() => {
+      leadUpdateQueued = false;
+      sendLeadName();
+    });
+  };
+  new MutationObserver(queueLeadUpdate).observe(document.body, { childList: true, subtree: true, characterData: true });
 
   store.get('messages', (data) => {
     if (Array.isArray(data.messages)) messages = data.messages;
     render();
+    sendLeadName();
   });
 })();

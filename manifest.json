@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "GHL Message Suggestions",
+  "name": "GHL Setting Tracker",
   "version": "1.0.0",
-  "description": "Suggest and paste outreach messages into the GoHighLevel composer.",
+  "description": "Track GoHighLevel calls and lead names, with message suggestions.",
   "permissions": ["storage"],
   "content_scripts": [
     {
@@ -13,6 +13,16 @@
       ],
       "js": ["scripts/message-suggestions.js"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["tracker/index.html"],
+      "matches": [
+        "https://app.gohighlevel.com/*",
+        "https://*.gohighlevel.com/*",
+        "https://*.msgsndr.com/*"
+      ]
     }
   ]
 }
