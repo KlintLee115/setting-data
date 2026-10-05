@@ -71,7 +71,24 @@
   const FIELD = 'width:100%;box-sizing:border-box;padding:4px;border:1px solid #c5ccd8;border-radius:4px;font:12px Arial,sans-serif;';
   let adding = false, status = '';
   let activeView = 'tracker';
+  let minimized = false;
   let lastLeadName = '';
+  const titlebar = make('div', 'display:flex;align-items:center;justify-content:space-between;gap:8px;');
+  const title = make('strong', 'font-size:13px;', 'Setting Tracker');
+  const minimize = make('button', 'border:0;background:transparent;color:#596579;font-size:20px;line-height:1;cursor:pointer;padding:2px 6px;', '−');
+  minimize.type = 'button';
+  minimize.setAttribute('aria-label', 'Minimize dashboard');
+  minimize.title = 'Minimize';
+  minimize.onclick = () => { minimized = true; render(); };
+  titlebar.append(title, minimize);
+  const restore = make('button', 'position:fixed;right:16px;bottom:16px;z-index:2147483647;padding:10px 14px;border:1px solid #245a95;border-radius:8px;background:#fff;color:#245a95;box-shadow:0 4px 14px rgba(0,0,0,.18);font:13px Arial,sans-serif;cursor:pointer;');
+  restore.type = 'button';
+  restore.textContent = 'Open tracker';
+  restore.setAttribute('aria-label', 'Restore dashboard');
+  restore.title = 'Restore dashboard';
+  restore.onclick = () => { minimized = false; render(); };
+  restore.style.display = 'none';
+  document.body.appendChild(restore);
   const nav = make('div', 'display:flex;gap:6px;');
   const messagesTab = make('button', BTN + 'flex:1;text-align:center;', 'Messages');
   const trackerTab = make('button', BTN + 'flex:1;text-align:center;', 'Tracker');
@@ -84,7 +101,7 @@
   trackerFrame.title = 'Setting Tracker';
   trackerFrame.src = chrome.runtime.getURL('tracker/index.html');
   trackerFrame.addEventListener('load', () => sendLeadName(true));
-  panel.append(nav, messageView, trackerFrame);
+  panel.append(titlebar, nav, messageView, trackerFrame);
 
   function sendLeadName(force = false) {
     const name = getLeadName();
@@ -94,6 +111,9 @@
   }
 
   function render() {
+    panel.style.display = minimized ? 'none' : 'flex';
+    restore.style.display = minimized ? 'block' : 'none';
+    if (minimized) return;
     const showingTracker = activeView === 'tracker';
     panel.style.width = showingTracker ? 'min(380px, calc(100vw - 32px))' : '220px';
     panel.style.maxHeight = showingTracker ? 'calc(100vh - 32px)' : '';
