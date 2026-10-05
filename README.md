@@ -1,178 +1,17 @@
-# GHL Call Log
+# Setting Tracker
 
-A local Google Chrome Manifest V3 extension for logging GoHighLevel calls and direct-message outreach as structured data entries.
+A standalone page for tracking cold-call outcomes (no server needed), plus a small Chrome extension for GoHighLevel message suggestions.
 
-The extension runs entirely in the browser. It uses `chrome.storage.local` and does not require external servers, a database, GoHighLevel API permissions, or AI services.
+## Use
 
-## Features
+Open [tracker/index.html](tracker/index.html) in a browser (or host the `tracker` folder as a website; in Chrome you can use "Install page as app" for a Windows app window).
 
-- Floating outreach logger inside GoHighLevel with separate call and DM flows
-- `Picked Up` and `No Answer` call tracking
-- DM channel, sent message, and outreach outcome tracking
-- Call datetime and call duration tracking
-- Manual lead-entry form with progressive workflow stages
-- Draft persistence when the popup is closed
-- Edit and delete entries
-- Duplicate-call warning based on normalized lead name and call time
-- Excel workbook export
+- **+ New call** adds a dial and starts a call entry (timestamped, optional lead name).
+- Toggle the result: pickup, no answer, qualified, disqualified (asks for a reason), pitched, booked.
+- Totals and pickup rate are computed from the call list; calls can be edited or deleted.
 
-## Install Locally
+Data is stored in the browser's localStorage.
 
-1. Open Chrome and go to `chrome://extensions`.
-2. Enable **Developer mode**.
-3. Click **Load unpacked**.
-4. Select this project folder.
-5. Open a matching GoHighLevel page and refresh it.
-6. Click the extension icon to open the dashboard.
+## Message suggestions extension
 
-The extension matches:
-
-- `https://app.gohighlevel.com/*`
-- `https://*.gohighlevel.com/*`
-- `https://*.msgsndr.com/*`
-
-After changing extension files, click **Reload** on the extension page and refresh the GoHighLevel tab.
-
-## Workflow
-
-### GHL call logging
-
-When a conversation is open in GoHighLevel, the content script detects the lead name and displays a floating logger. The existing `Picked Up` and `No Answer` actions continue to store call records. `Log DM` opens a separate flow that records channel, message, and outcome (`Sent`, `Replied`, `Qualified`, or `Booked`) as a DM record.
-
-The call logger captures:
-
-- Lead name
-- Pickup outcome
-- Call datetime
-- Call duration when a visible media duration is found
-
-### Manual entries
-
-The popup supports a Call/DM selector. Call entries retain the existing progressive stages:
-
-1. Lead information: name, email, phone
-2. Phone: pickup outcome, call datetime, duration, or last text message for no-answer calls
-3. Qualification: the lead’s open-text answer to “What are you looking for?”
-4. Call details: talk time, client type, and objection checkboxes with optional notes
-5. Pitch: No / Low ticket self close / High ticket booking (High ticket also asks for closer name and appointment date/time)
-6. Notes
-
-The form hides stages that do not apply. For example, qualification is not shown until a lead picks up, and call details/pitch are only shown after a lead picks up. The DM flow records channel, outcome, date/time, the message sent, and the lead's response independently of call fields.
-
-## Storage
-
-The extension stores data in Chrome local storage.
-
-### `entries`
-
-The primary unified collection. Each record has a stable `id` and may include:
-
-- `recordType`
-- `fullName` or `name`
-- `email`
-- `phone`
-- `intent` (the lead’s answer to “What are you looking for?”)
-- `phonePickedUp`
-- `callDateTime`
-- `callDuration`
-- `lastTextMessage`
-- `talkTime`
-- `clientType` (selected `9-5` and/or `Business Owner` checkboxes)
-- `objections`
-- `pitched` (`No`, `Low Ticket`, or `High Ticket`)
-- `closer`
-- `appointmentDate`
-- `notes`
-- `createdAt`
-
-The older `callLogs` and `manualEntries` keys are maintained as compatibility mirrors for existing data and content-script behavior.
-
-The popup does not compute outcome rates or summaries; the XLSX export includes a formula-driven Dashboard sheet.
-
-### Drafts
-
-`conversationDraft` stores unfinished form data so closing the popup does not lose work. Drafts are removed after saving, clearing, or cancelling.
-
-## Export
-
-Use **Export XLSX** to download the unified `entries` collection as a local Excel workbook. The `Analysis` sheet summarizes the call funnel. Rates show their denominator, stay blank when there is no eligible data, and should be interpreted with sample size in mind. The `Entries` sheet contains the underlying data, typed date/time values, objection flags, and filterable headers. Analysis formulas recalculate when entries are edited in Excel.
-
-Keep exported files somewhere secure because they may contain names, phone numbers, email addresses, and notes.
-
-## Privacy
-
-- No external server calls
-- No GoHighLevel API calls
-- No AI processing
-- No analytics or telemetry
-- Data stays in Chrome extension storage on the local browser profile
-
-Anyone with access to the Chrome profile may be able to access the extension data. Handle XLSX exports carefully because they contain potentially sensitive lead information.
-
-## Project Files
-
-- `manifest.json`: Chrome extension configuration
-- `popup.html`: Dashboard and data-entry interface
-- `scripts/content.js`: GoHighLevel page detection, floating logger, and local call persistence
-- `scripts/popup.js`: Popup state, form handling, and editing
-- `scripts/popup-data-transfer.js`: XLSX export
-- `scripts/popup-settings.js`: Local date and time helpers
-- `scripts/entry-model.js`: Entry status normalization and record shaping
-- `scripts/objection-options.js`: Shared objection checkbox options used by the call logger and popup form
-- `scripts/popup-storage.js`: Chrome storage access, migration, and draft persistence
-- `scripts/entry-view.js`: Entry table rendering and row actions
-- `scripts/timezone.js`: Local date/time conversion and formatting
-- `tests/`: Local date/time, entry-model, and content-script behavior tests
-
-## Development
-
-Install the development dependency and run the full check before opening a pull request:
-
-```powershell
-npm ci
-npm run check
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the local workflow and manual extension smoke test.
-
-The browser extension loads JavaScript from `scripts/`. `npm run check` runs the test suite.The Dashboard sheet has KPI cards, call and DM funnels, a 12-week trend, pickup rate by time of day and weekday, objection and client-type breakdowns, and quick reads, using in-cell bars and color scales (no native charts). Small samples show <5 instead of a rate. The Entries sheet holds the underlying data (frozen header, filters, dates in local time, objection flags, and helper columns for week, hour and weekday). Definitions explains each metric. Formulas recalculate when entries are edited in Excel (up to 5,000 rows). The export uses a bundled ExcelJS build in scripts/vendor/.
-
-Keep exported files somewhere secure because they may contain names, phone numbers, email addresses, and notes.
-
-## Privacy
-
-- No external server calls
-- No GoHighLevel API calls
-- No AI processing
-- No analytics or telemetry
-- Data stays in Chrome extension storage on the local browser profile
-
-Anyone with access to the Chrome profile may be able to access the extension data. Handle XLSX exports carefully because they contain potentially sensitive lead information.
-
-## Project Files
-
-- `manifest.json`: Chrome extension configuration
-- `popup.html`: Dashboard and data-entry interface
-- `scripts/content.js`: GoHighLevel page detection, floating logger, and local call persistence
-- `scripts/popup.js`: Popup state, form handling, and editing
-- `scripts/popup-data-transfer.js`: XLSX export
-- `scripts/popup-settings.js`: Local date and time helpers
-- `scripts/entry-model.js`: Entry status normalization and record shaping
-- `scripts/objection-options.js`: Shared objection checkbox options used by the call logger and popup form
-- `scripts/popup-storage.js`: Chrome storage access, migration, and draft persistence
-- `scripts/entry-view.js`: Entry table rendering and row actions
-- `scripts/timezone.js`: Local date/time conversion and formatting
-- `tests/`: Local date/time, entry-model, and content-script behavior tests
-
-## Development
-
-Install the development dependency and run the full check before opening a pull request:
-
-```powershell
-npm ci
-npm run check
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the local workflow and manual extension smoke test.
-
-The browser extension loads JavaScript from `scripts/`. `npm run check` runs the test suite.
+Load this folder as an unpacked extension (chrome://extensions > Developer mode > Load unpacked). On GoHighLevel pages a small panel appears bottom-right with four buttons (Follow-up, Standard, Certification form, Build It Launch It). Clicking one pastes that message, with the lead's first name filled in, into the conversation composer. Click **+ Add message** to save your own (use {name} for the lead's first name). Messages are saved in the extension's storage.

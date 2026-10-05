@@ -1,14 +1,13 @@
 {
-  "name": "ghl-call-log",
-  "private": true,
-  "scripts": {
-    "test": "node --test",
-    "check": "npm test"
-  },
-  "devDependencies": {
-    "typescript": "^5.9.2"
-  },
-  "dependencies": {
-    "exceljs": "^4.4.0"
-  }
+    "name":  "ghl-call-log",
+    "private":  true,
+    "scripts":  {
+
+                },
+    "devDependencies":  {
+                            "typescript":  "^5.9.2"
+                        },
+    "dependencies":  {
+                         "exceljs":  "^4.4.0"
+                     }
 }

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setting Tracker</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#111827;color:#f9fafb;margin:0;padding:20px;display:flex;justify-content:center}
+  main{width:100%;max-width:560px}
+  header{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}
+  h1{font-size:20px;margin:0}
+  h2{font-size:14px;color:#9ca3af;margin:20px 0 6px;font-weight:600}
+  input[type=date],input[type=text]{padding:8px;border-radius:6px;border:0}
+  button{border:0;border-radius:8px;background:#374151;color:#fff;cursor:pointer;font-size:15px;padding:10px 14px}
+  #newCall{width:100%;background:#16a34a;font-size:22px;font-weight:700;padding:16px}
+  .card{background:#1f2937;border-radius:10px;padding:12px;margin:8px 0}
+  .card.active{outline:2px solid #16a34a}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .tags button.on{background:#2563eb}
+  .tags button.on.bad{background:#dc2626}
+  .top{display:flex;gap:8px;align-items:center}
+  .top input{flex:1}
+  .meta{color:#9ca3af;font-size:13px;white-space:nowrap}
+  .sum{display:flex;flex-wrap:wrap;gap:8px}
+  .sum div{background:#1f2937;border-radius:8px;padding:8px 12px;text-align:center;min-width:70px}
+  .sum b{display:block;font-size:22px}
+  .sum span{font-size:12px;color:#9ca3af;text-transform:capitalize}
+  .rate{color:#9ca3af;font-size:14px}
+  .x{background:none;color:#6b7280;padding:4px 8px;font-size:13px}
+  .summary{color:#d1d5db;font-size:13px;margin-top:6px}
+</style>
+</head>
+<body>
+<main>
+  <header><h1>Setting Tracker</h1><input type="date" id="date"></header>
+  <button id="newCall">+ New call</button>
+  <div id="active"></div>
+  <details class="card"><summary>Manage metrics</summary>
+    <div class="top" style="margin-top:8px"><input type="text" id="newMetric" placeholder="New metric, e.g. voicemail"><button id="addMetric">Add</button></div>
+    <div class="tags" id="metricList"></div>
+  </details>
+  <h2>Today's totals</h2>
+  <div class="sum" id="sum"></div>
+  <p class="rate" id="rate"></p>
+  <h2>Calls</h2>
+  <div id="list"></div>
+</main>
+<script>
+const KEY_CALLS = 'tracker.calls';
+const KEY_METRICS = 'tracker.metrics';
+const KEY_REASON_OPTIONS = 'tracker.reasonOptions';
+const BASE_STAGES = ['pickup', 'no answer', 'didnt proceed', 'pitched', 'booked'];
+const FIELD = { 'no answer': 'noAnswer', 'didnt proceed': 'didntProceed' };
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+let metrics = load(KEY_METRICS, []);
+let REASON_OPTIONS = load(KEY_REASON_OPTIONS, ['not interested', 'had to go', 'just curious']);
+const field = (s) => FIELD[s] || (BASE_STAGES.includes(s) ? s : `x:${s}`);
+const allStages = () => [...BASE_STAGES, ...metrics];
+const allButtons = () => ['outbound dials', ...allStages()];
+let calls = load(KEY_CALLS, []);
+for (const call of calls) {
+  if (call.disqualified) { call.didntProceed = true; call.reasons = call.reasons || []; call.note = call.note ?? call.reason ?? ''; }
+  delete call.disqualified; delete call.reason;
+}
+let activeId = null;
+let removing = false;
+let counts = {}, hourly = {}, reasons = {};
+const dateEl = document.getElementById('date');
+const pad2 = (n) => String(n).padStart(2, '0');
+const dayOf = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+dateEl.value = dayOf(new Date());
+
+// counts, hourly and reasons are always derived from the call list
+const reasonText = (call) => [...(call.reasons || []), call.note].filter(Boolean).join(', ');
+function derive() {
+  counts = {}; hourly = {}; reasons = {};
+  for (const call of calls) {
+    if (call.done === false) continue;
+    const t = new Date(call.time);
+    const date = dayOf(t), hour = t.getHours();
+    const day = counts[date] || (counts[date] = {});
+    const slot = (hourly[date] || (hourly[date] = {}))[hour] || (hourly[date][hour] = {});
+    day['outbound dials'] = (day['outbound dials'] || 0) + 1; slot.dials = (slot.dials || 0) + 1;
+    for (const s of allStages()) if (call[field(s)]) day[s] = (day[s] || 0) + 1;
+    if (call.pickup) slot.pickup = (slot.pickup || 0) + 1;
+    if (call.didntProceed) (reasons[date] || (reasons[date] = [])).push(reasonText(call) || '(no reason)');
+  }
+}
+const save = () => { localStorage.setItem(KEY_CALLS, JSON.stringify(calls)); render(); };
+const todays = () => calls.filter((c) => dayOf(new Date(c.time)) === dateEl.value);
+
+function toggle(call, stage) {
+  const key = field(stage);
+  if (call.noAnswer && stage !== 'pickup' && stage !== 'no answer') return;
+  if (call[key]) {
+    call[key] = false;
+    if (key === 'didntProceed') { call.reasons = []; call.note = ''; }
+    return;
+  }
+  call[key] = true;
+  if (stage === 'pickup') call.noAnswer = false;
+  if (stage === 'no answer') {
+    Object.assign(call, { pickup: false, didntProceed: false, pitched: false, booked: false, reasons: [], note: '' });
+    for (const m of metrics) call[field(m)] = false;
+  }
+}
+function tagButtons(call) {
+  const wrap = document.createElement('div'); wrap.className = 'tags';
+  for (const stage of allStages()) {
+    const b = document.createElement('button');
+    b.textContent = stage;
+    if (call.noAnswer && stage !== 'pickup' && stage !== 'no answer') { b.disabled = true; b.style.opacity = '0.4'; b.style.cursor = 'not-allowed'; }
+    if (call[field(stage)]) b.className = 'on' + (stage === 'didnt proceed' || stage === 'no answer' ? ' bad' : '');
+    b.onclick = () => { toggle(call, stage); save(); };
+    wrap.append(b);
+  }
+  return wrap;
+}
+
+const hasResult = (call) => allStages().some((s) => call[field(s)]);
+function describe(call) {
+  const tags = allStages().filter((s) => call[field(s)]);
+  if (call.done === false) return 'in progress (not counted until Done)' + (tags.length ? ': ' + tags.join(' › ') : '');
+  return tags.length ? tags.join(' › ') + (call.didntProceed && reasonText(call) ? ` (${reasonText(call)})` : '') : 'no result yet';
+}
+
+function renderMetrics() {
+  const list = document.getElementById('metricList'); list.textContent = '';
+  for (const m of metrics) {
+    const b = document.createElement('button'); b.textContent = `✕ ${m}`; b.title = 'Remove metric (past data is kept but hidden)';
+    b.onclick = () => { if (confirm(`Remove "${m}"?`)) { metrics = metrics.filter((x) => x !== m); localStorage.setItem(KEY_METRICS, JSON.stringify(metrics)); render(); } };
+    list.append(b);
+  }
+}
+document.getElementById('addMetric').onclick = () => {
+  const el = document.getElementById('newMetric');
+  const name = el.value.trim().toLowerCase();
+  el.value = '';
+  if (!name || allButtons().includes(name)) return;
+  metrics.push(name); localStorage.setItem(KEY_METRICS, JSON.stringify(metrics)); render();
+};
+document.getElementById('newMetric').onkeydown = (e) => { if (e.key === 'Enter') document.getElementById('addMetric').click(); };
+
+function render() {
+  derive();
+  renderMetrics();
+  const active = calls.find((c) => c.id === activeId);
+  const box = document.getElementById('active');
+  box.textContent = '';
+  if (active) {
+    const card = document.createElement('div'); card.className = 'card active';
+    const top = document.createElement('div'); top.className = 'top';
+    const name = document.createElement('input'); name.type = 'text'; name.placeholder = 'Lead name (optional)'; name.value = active.lead || '';
+    name.onchange = () => { active.lead = name.value.trim(); save(); };
+    const done = document.createElement('button'); done.textContent = 'Done'; done.onclick = () => {
+      if (hasResult(active)) active.done = true; else calls = calls.filter((x) => x !== active);
+      activeId = null; save();
+    };
+    top.append(name, done);
+    card.append(top, tagButtons(active));
+    if (active.didntProceed) {
+      const wrap = document.createElement('div'); wrap.style.cssText = 'margin-top:10px';
+      for (const option of REASON_OPTIONS) {
+        if (removing) {
+          const rm = document.createElement('button'); rm.className = 'x'; rm.textContent = '✕ ' + option;
+          rm.onclick = () => { REASON_OPTIONS = REASON_OPTIONS.filter((o) => o !== option); localStorage.setItem(KEY_REASON_OPTIONS, JSON.stringify(REASON_OPTIONS)); save(); };
+          wrap.append(rm); continue;
+        }
+        const label = document.createElement('label'); label.style.cssText = 'display:inline-flex;align-items:center;gap:6px;margin-right:14px;cursor:pointer';
+        const box = document.createElement('input'); box.type = 'checkbox';
+        box.checked = (active.reasons || []).includes(option);
+        box.onchange = () => {
+          const set = new Set(active.reasons || []);
+          if (box.checked) set.add(option); else set.delete(option);
+          active.reasons = REASON_OPTIONS.filter((o) => set.has(o));
+          save();
+        };
+        label.append(box, option); wrap.append(label);
+      }
+      const note = document.createElement('input'); note.type = 'text'; note.placeholder = 'Other reason / note (optional)'; note.value = active.note || '';
+      note.style.cssText = 'width:100%;box-sizing:border-box;margin-top:8px';
+      note.onchange = () => { active.note = note.value.trim(); save(); };
+      const addRow = document.createElement('div'); addRow.className = 'top'; addRow.style.marginTop = '8px';
+      const newReason = document.createElement('input'); newReason.type = 'text'; newReason.placeholder = 'Add a reason to the checklist';
+      const addReason = document.createElement('button'); addReason.textContent = 'Add';
+      addReason.onclick = () => {
+        const v = newReason.value.trim().toLowerCase();
+        if (v && !REASON_OPTIONS.includes(v)) { REASON_OPTIONS.push(v); active.reasons = [...(active.reasons || []), v]; localStorage.setItem(KEY_REASON_OPTIONS, JSON.stringify(REASON_OPTIONS)); save(); }
+      };
+      newReason.onkeydown = (e) => { if (e.key === 'Enter') addReason.click(); };
+      const manage = document.createElement('button'); manage.className = 'x'; manage.textContent = 'remove reasons';
+      manage.onclick = () => { removing = !removing; render(); };
+      addRow.append(newReason, addReason, manage);
+      card.append(wrap, note, addRow);
+    }
+    box.append(card);
+  }
+  const day = counts[dateEl.value] || {};
+  const sum = document.getElementById('sum'); sum.textContent = '';
+  for (const b of allButtons()) {
+    const d = document.createElement('div');
+    const n = document.createElement('b'); n.textContent = day[b] || 0;
+    const l = document.createElement('span'); l.textContent = b;
+    d.append(n, l); sum.append(d);
+  }
+  const dialCount = day['outbound dials'] || 0;
+  document.getElementById('rate').textContent = dialCount ? `Pickup rate: ${Math.round(((day.pickup || 0) / dialCount) * 100)}% (${day.pickup || 0}/${dialCount})` : '';
+  const list = document.getElementById('list'); list.textContent = '';
+  for (const call of todays().reverse()) {
+    if (call.id === activeId) continue;
+    const card = document.createElement('div'); card.className = 'card';
+    const top = document.createElement('div'); top.className = 'top';
+    const time = new Date(call.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const label = document.createElement('span'); label.className = 'meta'; label.textContent = `${time}${call.lead ? ' · ' + call.lead : ''}`;
+    const edit = document.createElement('button'); edit.className = 'x'; edit.textContent = 'edit'; edit.onclick = () => { activeId = call.id; render(); };
+    const del = document.createElement('button'); del.className = 'x'; del.textContent = 'delete';
+    del.onclick = () => { if (confirm('Delete this call?')) { calls = calls.filter((c) => c !== call); save(); } };
+    const spacer = document.createElement('span'); spacer.style.flex = '1';
+    top.append(label, spacer, edit, del);
+    const s = document.createElement('div'); s.className = 'summary'; s.textContent = describe(call);
+    card.append(top, s); list.append(card);
+  }
+}
+
+document.getElementById('newCall').onclick = () => {
+  const open = calls.find((x) => x.id === activeId);
+  if (open && !hasResult(open)) return;
+  if (open) open.done = true;
+  const call = { id: String(Date.now()), time: new Date().toISOString(), lead: '', done: false };
+  calls.push(call); activeId = call.id; save();
+};
+dateEl.onchange = render;
+render();
+</script>
+</body>
+</html>
