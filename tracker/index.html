@@ -91,25 +91,14 @@ const todays = () => calls.filter((c) => dayOf(new Date(c.time)) === dateEl.valu
 
 function toggle(call, stage) {
   const key = field(stage);
-  if (call.noAnswer && stage !== 'pickup' && stage !== 'no answer') return;
-  if (call[key]) {
-    call[key] = false;
-    if (key === 'didntProceed') { call.reasons = []; call.note = ''; }
-    return;
-  }
-  call[key] = true;
-  if (stage === 'pickup') call.noAnswer = false;
-  if (stage === 'no answer') {
-    Object.assign(call, { pickup: false, didntProceed: false, pitched: false, booked: false, reasons: [], note: '' });
-    for (const m of metrics) call[field(m)] = false;
-  }
+  call[key] = !call[key];
+  if (!call[key] && key === 'didntProceed') { call.reasons = []; call.note = ''; }
 }
 function tagButtons(call) {
   const wrap = document.createElement('div'); wrap.className = 'tags';
   for (const stage of allStages()) {
     const b = document.createElement('button');
     b.textContent = stage;
-    if (call.noAnswer && stage !== 'pickup' && stage !== 'no answer') { b.disabled = true; b.style.opacity = '0.4'; b.style.cursor = 'not-allowed'; }
     if (call[field(stage)]) b.className = 'on' + (stage === 'didnt proceed' || stage === 'no answer' ? ' bad' : '');
     b.onclick = () => { toggle(call, stage); save(); };
     wrap.append(b);
