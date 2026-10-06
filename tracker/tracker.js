@@ -4,12 +4,14 @@ const KEY_REASON_OPTIONS = 'tracker.reasonOptions';
 const BASE_STAGES = ['pickup', 'no answer', 'didnt proceed', 'pitched', 'booked'];
 const FIELD = { 'no answer': 'noAnswer', 'didnt proceed': 'didntProceed' };
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const clone = (value) => JSON.parse(JSON.stringify(value));
 let metrics = load(KEY_METRICS, []);
 let REASON_OPTIONS = load(KEY_REASON_OPTIONS, ['not interested', 'had to go', 'just curious']);
 const field = (s) => FIELD[s] || (BASE_STAGES.includes(s) ? s : `x:${s}`);
 const allStages = () => [...BASE_STAGES, ...metrics];
 const allButtons = () => ['outbound dials', ...allStages()];
 let calls = load(KEY_CALLS, []);
+let savedState = { calls: clone(calls), metrics: clone(metrics), reasons: clone(REASON_OPTIONS) };
 for (const call of calls) {
   if (call.disqualified) { call.didntProceed = true; call.reasons = call.reasons || []; call.note = call.note ?? call.reason ?? ''; }
   delete call.disqualified; delete call.reason;
@@ -43,7 +45,94 @@ function derive() {
     if (call.didntProceed) (reasons[date] || (reasons[date] = [])).push(reasonText(call) || '(no reason)');
   }
 }
-const save = () => { localStorage.setItem(KEY_CALLS, JSON.stringify(calls)); render(); };
+function mergeCalls(base, edited, latest) {
+  const result = new Map(latest.map((call) => [call.id, clone(call)]));
+  const baseById = new Map(base.map((call) => [call.id, call]));
+  const editedById = new Map(edited.map((call) => [call.id, call]));
+
+  for (const [id, original] of baseById) {
+    const changed = editedById.get(id);
+    if (!changed) {
+      result.delete(id);
+      continue;
+    }
+    if (JSON.stringify(original) === JSON.stringify(changed)) continue;
+    const merged = result.get(id) || {};
+    for (const key of new Set([...Object.keys(original), ...Object.keys(changed)])) {
+      if (JSON.stringify(original[key]) === JSON.stringify(changed[key])) continue;
+      if (Object.prototype.hasOwnProperty.call(changed, key)) merged[key] = clone(changed[key]);
+      else delete merged[key];
+    }
+    result.set(id, merged);
+  }
+  for (const [id, call] of editedById) {
+    if (!baseById.has(id) && !result.has(id)) result.set(id, clone(call));
+  }
+  return [...result.values()];
+}
+const mergeList = (base, edited, latest) => [
+  ...latest.filter((value) => !base.includes(value) || edited.includes(value)),
+  ...edited.filter((value) => !base.includes(value) && !latest.includes(value))
+];
+function applyStoredState(latest) {
+  const local = { calls, metrics, reasons: REASON_OPTIONS };
+  const merged = {
+    calls: mergeCalls(savedState.calls, local.calls, latest.calls),
+    metrics: mergeList(savedState.metrics, local.metrics, latest.metrics),
+    reasons: mergeList(savedState.reasons, local.reasons, latest.reasons)
+  };
+  savedState = clone(latest);
+  calls = merged.calls;
+  metrics = merged.metrics;
+  REASON_OPTIONS = merged.reasons;
+}
+const save = () => {
+  const base = clone(savedState);
+  const edited = { calls: clone(calls), metrics: clone(metrics), reasons: clone(REASON_OPTIONS) };
+  render();
+  if (!navigator.locks) {
+    console.error('This browser does not support shared tracker saves.');
+    window.alert('Unable to safely save tracker data across windows. Please update Chrome and try again.');
+    return;
+  }
+  navigator.locks.request('setting-tracker-data', () => {
+    const latest = {
+      calls: load(KEY_CALLS, []),
+      metrics: load(KEY_METRICS, []),
+      reasons: load(KEY_REASON_OPTIONS, ['not interested', 'had to go', 'just curious'])
+    };
+    const next = {
+      calls: mergeCalls(base.calls, edited.calls, latest.calls),
+      metrics: mergeList(base.metrics, edited.metrics, latest.metrics),
+      reasons: mergeList(base.reasons, edited.reasons, latest.reasons)
+    };
+    localStorage.setItem(KEY_CALLS, JSON.stringify(next.calls));
+    localStorage.setItem(KEY_METRICS, JSON.stringify(next.metrics));
+    localStorage.setItem(KEY_REASON_OPTIONS, JSON.stringify(next.reasons));
+    savedState = clone(next);
+    calls = next.calls;
+    metrics = next.metrics;
+    REASON_OPTIONS = next.reasons;
+    render();
+  }).catch((error) => {
+    console.error('Unable to save tracker data.', error);
+    window.alert('Unable to save tracker data. Your changes are still on this page; please try again.');
+  });
+};
+window.addEventListener('storage', (event) => {
+  const key = event.key;
+  if (![KEY_CALLS, KEY_METRICS, KEY_REASON_OPTIONS].includes(key)) return;
+  const latest = {
+    calls: load(KEY_CALLS, []),
+    metrics: load(KEY_METRICS, []),
+    reasons: load(KEY_REASON_OPTIONS, ['not interested', 'had to go', 'just curious'])
+  };
+  if (key === KEY_CALLS && event.newValue !== null) latest.calls = JSON.parse(event.newValue);
+  if (key === KEY_METRICS && event.newValue !== null) latest.metrics = JSON.parse(event.newValue);
+  if (key === KEY_REASON_OPTIONS && event.newValue !== null) latest.reasons = JSON.parse(event.newValue);
+  applyStoredState(latest);
+  render();
+});
 const todays = () => calls.filter((c) => dayOf(new Date(c.time)) === dateEl.value);
 
 window.addEventListener('message', (event) => {
@@ -90,7 +179,7 @@ function renderMetrics() {
   const list = document.getElementById('metricList'); list.textContent = '';
   for (const m of metrics) {
     const b = document.createElement('button'); b.textContent = `✕ ${m}`; b.title = 'Remove metric (past data is kept but hidden)';
-    b.onclick = () => { if (confirm(`Remove "${m}"?`)) { metrics = metrics.filter((x) => x !== m); localStorage.setItem(KEY_METRICS, JSON.stringify(metrics)); render(); } };
+    b.onclick = () => { if (confirm(`Remove "${m}"?`)) { metrics = metrics.filter((x) => x !== m); save(); } };
     list.append(b);
   }
 }
@@ -99,7 +188,7 @@ document.getElementById('addMetric').onclick = () => {
   const name = el.value.trim().toLowerCase();
   el.value = '';
   if (!name || allButtons().includes(name)) return;
-  metrics.push(name); localStorage.setItem(KEY_METRICS, JSON.stringify(metrics)); render();
+  metrics.push(name); save();
 };
 document.getElementById('newMetric').onkeydown = (e) => { if (e.key === 'Enter') document.getElementById('addMetric').click(); };
 
@@ -142,7 +231,7 @@ function render() {
       for (const option of REASON_OPTIONS) {
         if (removing) {
           const rm = document.createElement('button'); rm.className = 'x'; rm.textContent = '✕ ' + option;
-          rm.onclick = () => { REASON_OPTIONS = REASON_OPTIONS.filter((o) => o !== option); localStorage.setItem(KEY_REASON_OPTIONS, JSON.stringify(REASON_OPTIONS)); save(); };
+          rm.onclick = () => { REASON_OPTIONS = REASON_OPTIONS.filter((o) => o !== option); save(); };
           wrap.append(rm); continue;
         }
         const label = document.createElement('label'); label.style.cssText = 'display:inline-flex;align-items:center;gap:6px;margin-right:14px;cursor:pointer';
@@ -164,7 +253,7 @@ function render() {
       const addReason = document.createElement('button'); addReason.textContent = 'Add';
       addReason.onclick = () => {
         const v = newReason.value.trim().toLowerCase();
-        if (v && !REASON_OPTIONS.includes(v)) { REASON_OPTIONS.push(v); active.reasons = [...(active.reasons || []), v]; localStorage.setItem(KEY_REASON_OPTIONS, JSON.stringify(REASON_OPTIONS)); save(); }
+        if (v && !REASON_OPTIONS.includes(v)) { REASON_OPTIONS.push(v); active.reasons = [...(active.reasons || []), v]; save(); }
       };
       newReason.onkeydown = (e) => { if (e.key === 'Enter') addReason.click(); };
       const manage = document.createElement('button'); manage.className = 'x'; manage.textContent = 'remove reasons';
@@ -205,7 +294,7 @@ document.getElementById('newCall').onclick = () => {
   const open = calls.find((x) => x.id === activeId);
   if (open && !hasResult(open)) return;
   if (open) open.done = true;
-  const call = { id: String(Date.now()), time: new Date().toISOString(), lead: currentGhlLead, done: false };
+  const call = { id: crypto.randomUUID(), time: new Date().toISOString(), lead: currentGhlLead, done: false };
   calls.push(call); activeId = call.id; autoLead = currentGhlLead; save();
 };
 dateEl.onchange = render;
