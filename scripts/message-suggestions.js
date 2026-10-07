@@ -62,13 +62,14 @@
   const save = () => store.set({ messages });
 
   const panel = document.createElement('div');
-  panel.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483647;display:flex;flex-direction:column;gap:6px;width:220px;max-width:calc(100vw - 32px);padding:8px;box-sizing:border-box;background:#fff;border:1px solid #d5dbe5;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.18);font:12px Arial,sans-serif;color:#222;';
+  panel.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483647;display:flex;flex-direction:column;gap:6px;width:220px;max-width:calc(100vw - 32px);padding:8px;box-sizing:border-box;background:#fff;border:1px solid #d5dbe5;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.18);font:12px Arial,sans-serif;color:#222;cursor:move;';
   document.body.appendChild(panel);
 
   const style = (el, css) => { el.style.cssText = css; return el; };
   const make = (tag, css, text) => { const el = style(document.createElement(tag), css); if (text) el.textContent = text; return el; };
   const BTN = 'padding:6px 10px;border:1px solid #245a95;border-radius:5px;background:#fff;color:#245a95;cursor:pointer;text-align:left;';
   const FIELD = 'width:100%;box-sizing:border-box;padding:4px;border:1px solid #c5ccd8;border-radius:4px;font:12px Arial,sans-serif;';
+  const MAX_VISIBLE_MESSAGES = 6;
   let adding = false, status = '';
   let activeView = 'tracker';
   let minimized = false;
@@ -81,14 +82,58 @@
   minimize.title = 'Minimize';
   minimize.onclick = () => { minimized = true; render(); };
   titlebar.append(title, minimize);
-  const restore = make('button', 'position:fixed;right:16px;bottom:16px;z-index:2147483647;padding:10px 14px;border:1px solid #245a95;border-radius:8px;background:#fff;color:#245a95;box-shadow:0 4px 14px rgba(0,0,0,.18);font:13px Arial,sans-serif;cursor:pointer;');
+  const restore = make('button', 'position:fixed;right:16px;bottom:16px;z-index:2147483647;padding:10px 14px;border:1px solid #245a95;border-radius:8px;background:#fff;color:#245a95;box-shadow:0 4px 14px rgba(0,0,0,.18);font:13px Arial,sans-serif;cursor:move;touch-action:none;');
   restore.type = 'button';
   restore.textContent = 'Open tracker';
   restore.setAttribute('aria-label', 'Restore dashboard');
   restore.title = 'Restore dashboard';
   restore.onclick = () => { minimized = false; render(); };
   restore.style.display = 'none';
-  document.body.appendChild(restore);
+  let position = null;
+  const applyPosition = (el) => {
+    if (!position) return;
+    const rect = el.getBoundingClientRect();
+    el.style.left = `${Math.max(0, Math.min(window.innerWidth - rect.width, position.left))}px`;
+    el.style.top = `${Math.max(0, Math.min(window.innerHeight - rect.height, position.top))}px`;
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
+  };
+  // Drags `el` by pressing anywhere on `handle` except interactive controls; a drag suppresses the click.
+  function makeDraggable(el, handle) {
+    let start = null, dragged = false, suppressClick = false;
+    handle.addEventListener('pointerdown', (event) => {
+      if (!event.isPrimary || event.button !== 0) return;
+      const control = event.target.closest('button, input, textarea, select, a');
+      if (control && control !== handle) return;
+      const rect = el.getBoundingClientRect();
+      start = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top };
+      dragged = false;
+      handle.setPointerCapture(event.pointerId);
+    });
+    handle.addEventListener('pointermove', (event) => {
+      if (!start || !handle.hasPointerCapture(event.pointerId)) return;
+      const dx = event.clientX - start.x, dy = event.clientY - start.y;
+      if (!dragged && Math.hypot(dx, dy) < 4) return;
+      dragged = true;
+      position = { left: start.left + dx, top: start.top + dy };
+      applyPosition(el);
+      position = { left: parseFloat(el.style.left), top: parseFloat(el.style.top) };
+    });
+    const finish = (event, cancelled) => {
+      if (!start) return;
+      if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+      suppressClick = dragged && !cancelled;
+      start = null;
+    };
+    handle.addEventListener('pointerup', (event) => finish(event, false));
+    handle.addEventListener('pointercancel', (event) => finish(event, true));
+    handle.addEventListener('click', (event) => {
+      if (!suppressClick) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      suppressClick = false;
+    }, true);
+  } document.body.appendChild(restore);
   const nav = make('div', 'display:flex;gap:6px;');
   const messagesTab = make('button', BTN + 'flex:1;text-align:center;', 'Messages');
   const trackerTab = make('button', BTN + 'flex:1;text-align:center;', 'Tracker');
@@ -97,11 +142,14 @@
   trackerTab.onclick = () => { activeView = 'tracker'; render(); };
   nav.append(messagesTab, trackerTab);
   const messageView = make('div', 'display:flex;flex-direction:column;gap:6px;');
+  const messageList = make('div', 'display:flex;flex-direction:column;gap:6px;overflow-y:auto;overscroll-behavior:contain;cursor:default;');
   const trackerFrame = make('iframe', 'display:none;width:100%;height:min(72vh,680px);min-height:420px;border:0;border-radius:6px;background:#111827;');
   trackerFrame.title = 'Setting Tracker';
   trackerFrame.src = chrome.runtime.getURL('tracker/index.html');
   trackerFrame.addEventListener('load', () => sendLeadName(true));
   panel.append(titlebar, nav, messageView, trackerFrame);
+  makeDraggable(panel, panel);
+  makeDraggable(restore, restore);
 
   function sendLeadName(force = false) {
     const name = getLeadName();
@@ -113,7 +161,7 @@
   function render() {
     panel.style.display = minimized ? 'none' : 'flex';
     restore.style.display = minimized ? 'block' : 'none';
-    if (minimized) return;
+    if (minimized) { applyPosition(restore); return; }
     const showingTracker = activeView === 'tracker';
     panel.style.width = showingTracker ? 'min(380px, calc(100vw - 32px))' : '220px';
     panel.style.maxHeight = showingTracker ? 'calc(100vh - 32px)' : '';
@@ -121,14 +169,22 @@
     trackerTab.style.background = showingTracker ? '#e9f1fa' : '#fff';
     messageView.style.display = showingTracker ? 'none' : 'flex';
     trackerFrame.style.display = showingTracker ? 'block' : 'none';
+    applyPosition(panel);
     messageView.textContent = '';
+    messageList.textContent = '';
     messages.forEach((m, i) => {
       const use = make('button', BTN, m.label);
       use.type = 'button';
       use.title = buildMessage(m.text);
       use.onclick = () => { status = fillComposer(buildMessage(m.text)) ? '' : 'Open a conversation first.'; render(); };
-      messageView.appendChild(use);
+      messageList.appendChild(use);
     });
+    messageView.appendChild(messageList);
+    const firstButton = messageList.firstElementChild;
+    if (firstButton) {
+      const rowHeight = firstButton.offsetHeight + 6;
+      messageList.style.maxHeight = `${rowHeight * MAX_VISIBLE_MESSAGES - 6}px`;
+    }
     if (status) messageView.appendChild(make('div', 'color:#9b3034;', status));
     if (!adding) {
       const add = make('button', BTN + 'border-style:dashed;', '+ Add message');
