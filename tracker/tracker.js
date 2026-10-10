@@ -172,11 +172,28 @@ function tagButtons(call) {
   return wrap;
 }
 
+const talkMs = (call) => (call.talkMs || 0) + (call.timerStart ? Math.max(0, Date.now() - new Date(call.timerStart).getTime()) : 0);
+const formatTalk = (ms) => {
+  const s = Math.floor(ms / 1000);
+  return `${pad2(Math.floor(s / 60))}:${pad2(s % 60)}`;
+};
+function stopTimer(call) {
+  if (!call || !call.timerStart) return;
+  call.talkMs = talkMs(call);
+  delete call.timerStart;
+}
+setInterval(() => {
+  const el = document.getElementById('talkTimer');
+  const active = calls.find((c) => c.id === activeId);
+  if (el && active) el.textContent = formatTalk(talkMs(active));
+}, 500);
+
 const hasResult = (call) => allStages().some((s) => call[field(s)]);
 function describe(call) {
   const tags = allStages().filter((s) => call[field(s)]);
   if (call.done === false) return 'in progress (not counted until Done)' + (tags.length ? ': ' + tags.join(' › ') : '');
-  return tags.length ? tags.join(' › ') + (call.didntProceed && reasonText(call) ? ` (${reasonText(call)})` : '') : 'no result yet';
+  const talk = call.talkMs ? ` · talk ${formatTalk(call.talkMs)}` : '';
+  return (tags.length ? tags.join(' › ') + (call.didntProceed && reasonText(call) ? ` (${reasonText(call)})` : '') : 'no result yet') + talk;
 }
 
 function renderMetrics() {
@@ -223,13 +240,23 @@ function render() {
       dateEl.value = dayOf(updatedTime);
       save();
     };
+    const timer = document.createElement('div'); timer.className = 'timer';
+    const timerText = document.createElement('span'); timerText.id = 'talkTimer'; timerText.textContent = formatTalk(talkMs(active));
+    const timerBtn = document.createElement('button');
+    timerBtn.textContent = active.timerStart ? 'Stop timer' : 'Resume timer';
+    timerBtn.onclick = () => {
+      if (active.timerStart) stopTimer(active); else active.timerStart = new Date().toISOString();
+      save();
+    };
+    timer.append('Talk time ', timerText, timerBtn);
     const done = document.createElement('button'); done.textContent = 'Done'; done.onclick = () => {
+      stopTimer(active);
       if (hasResult(active)) active.done = true; else calls = calls.filter((x) => x !== active);
       activeId = null; autoLead = '';
       save();
     };
     top.append(name, done);
-    card.append(top, callTime, tagButtons(active));
+    card.append(top, timer, callTime, tagButtons(active));
     if (active.didntProceed) {
       const wrap = document.createElement('div'); wrap.style.cssText = 'margin-top:10px';
       for (const option of REASON_OPTIONS) {
@@ -301,7 +328,7 @@ function render() {
         console.warn('Ignoring invalid saved GoHighLevel lead URL.', error);
       }
     }
-    const edit = document.createElement('button'); edit.className = 'x'; edit.textContent = 'edit'; edit.onclick = () => { activeId = call.id; render(); };
+    const edit = document.createElement('button'); edit.className = 'x'; edit.textContent = 'edit'; edit.onclick = () => { stopTimer(calls.find((x) => x.id === activeId)); activeId = call.id; save(); };
     const del = document.createElement('button'); del.className = 'x'; del.textContent = 'delete';
     del.onclick = () => { if (confirm('Delete this call?')) { calls = calls.filter((c) => c !== call); save(); } };
     const spacer = document.createElement('span'); spacer.style.flex = '1';
@@ -314,8 +341,9 @@ function render() {
 document.getElementById('newCall').onclick = () => {
   const open = calls.find((x) => x.id === activeId);
   if (open && !hasResult(open)) return;
-  if (open) open.done = true;
-  const call = { id: crypto.randomUUID(), time: new Date().toISOString(), lead: currentGhlLead, leadUrl: currentGhlUrl, done: false };
+  if (open) { stopTimer(open); open.done = true; }
+  const now = new Date().toISOString();
+  const call = { id: crypto.randomUUID(), time: now, lead: currentGhlLead, leadUrl: currentGhlUrl, done: false, talkMs: 0, timerStart: now };
   calls.push(call); activeId = call.id; autoLead = currentGhlLead; save();
 };
 dateEl.onchange = render;
