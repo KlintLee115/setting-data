@@ -6,7 +6,7 @@ A Chrome extension for tracking cold-call outcomes directly in GoHighLevel, with
 
 Load this folder as an unpacked extension (chrome://extensions > Developer mode > Load unpacked). On GoHighLevel pages, use the **Tracker** tab in the bottom-right panel to open the dashboard. Use **−** to minimize the panel to an **Open tracker** button, which restores it; drag the panel (title bar or empty space) or the button to move the widget around the page. **+ New call** starts the same call-entry flow and automatically fills the lead name from the open conversation; you can still edit the name manually.
 
-- **+ New call** adds a dial and starts a call entry (editable call date/time and optional lead name).
+- **+ New call** adds a dial and starts a call entry (editable call date/time and optional lead name). When opened on a GoHighLevel lead, the lead name and page URL are saved with the call; saved links are available from call history.
 - Toggle the result: pickup, no answer, qualified, disqualified (asks for a reason), pitched, booked.
 - Totals and pickup rate are computed from the call list; calls can be edited or deleted.
 

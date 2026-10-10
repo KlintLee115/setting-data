@@ -19,6 +19,7 @@ for (const call of calls) {
 let activeId = null;
 let removing = false;
 let currentGhlLead = '';
+let currentGhlUrl = '';
 let autoLead = '';
 let counts = {}, hourly = {}, reasons = {};
 const dateEl = document.getElementById('date');
@@ -138,12 +139,15 @@ const todays = () => calls.filter((c) => dayOf(new Date(c.time)) === dateEl.valu
 window.addEventListener('message', (event) => {
   if (event.source !== parent || event.data?.type !== 'setting-tracker:lead') return;
   const lead = typeof event.data.name === 'string' ? event.data.name.trim() : '';
-  if (lead === currentGhlLead) return;
+  const url = typeof event.data.url === 'string' ? event.data.url : '';
+  if (lead === currentGhlLead && url === currentGhlUrl) return;
   const previousAutoLead = autoLead;
   currentGhlLead = lead;
+  currentGhlUrl = url;
   const active = calls.find((call) => call.id === activeId);
   if (active && lead && (!active.lead || (previousAutoLead && active.lead === previousAutoLead))) {
     active.lead = lead;
+    active.leadUrl = url;
     autoLead = lead;
     save();
     return;
@@ -280,11 +284,28 @@ function render() {
     const top = document.createElement('div'); top.className = 'top';
     const time = new Date(call.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     const label = document.createElement('span'); label.className = 'meta'; label.textContent = `${time}${call.lead ? ' · ' + call.lead : ''}`;
+    top.append(label);
+    if (call.leadUrl) {
+      try {
+        const leadUrl = new URL(call.leadUrl);
+        if (leadUrl.protocol === 'https:' && (leadUrl.hostname === 'gohighlevel.com' || leadUrl.hostname.endsWith('.gohighlevel.com') || leadUrl.hostname === 'msgsndr.com' || leadUrl.hostname.endsWith('.msgsndr.com'))) {
+          const link = document.createElement('a');
+          link.href = leadUrl.href;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = 'GHL';
+          link.className = 'meta';
+          top.append(link);
+        }
+      } catch (error) {
+        console.warn('Ignoring invalid saved GoHighLevel lead URL.', error);
+      }
+    }
     const edit = document.createElement('button'); edit.className = 'x'; edit.textContent = 'edit'; edit.onclick = () => { activeId = call.id; render(); };
     const del = document.createElement('button'); del.className = 'x'; del.textContent = 'delete';
     del.onclick = () => { if (confirm('Delete this call?')) { calls = calls.filter((c) => c !== call); save(); } };
     const spacer = document.createElement('span'); spacer.style.flex = '1';
-    top.append(label, spacer, edit, del);
+    top.append(spacer, edit, del);
     const s = document.createElement('div'); s.className = 'summary'; s.textContent = describe(call);
     card.append(top, s); list.append(card);
   }
@@ -294,7 +315,7 @@ document.getElementById('newCall').onclick = () => {
   const open = calls.find((x) => x.id === activeId);
   if (open && !hasResult(open)) return;
   if (open) open.done = true;
-  const call = { id: crypto.randomUUID(), time: new Date().toISOString(), lead: currentGhlLead, done: false };
+  const call = { id: crypto.randomUUID(), time: new Date().toISOString(), lead: currentGhlLead, leadUrl: currentGhlUrl, done: false };
   calls.push(call); activeId = call.id; autoLead = currentGhlLead; save();
 };
 dateEl.onchange = render;

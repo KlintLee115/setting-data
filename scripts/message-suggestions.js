@@ -70,10 +70,11 @@
   const BTN = 'padding:6px 10px;border:1px solid #245a95;border-radius:5px;background:#fff;color:#245a95;cursor:pointer;text-align:left;';
   const FIELD = 'width:100%;box-sizing:border-box;padding:4px;border:1px solid #c5ccd8;border-radius:4px;font:12px Arial,sans-serif;';
   const MAX_VISIBLE_MESSAGES = 6;
-  let adding = false, status = '';
+  let adding = false, editingIndex = null, status = '';
   let activeView = 'tracker';
   let minimized = false;
   let lastLeadName = '';
+  let lastLeadUrl = '';
   const titlebar = make('div', 'display:flex;align-items:center;justify-content:space-between;gap:8px;');
   const title = make('strong', 'font-size:13px;', 'Setting Tracker');
   const minimize = make('button', 'border:0;background:transparent;color:#596579;font-size:20px;line-height:1;cursor:pointer;padding:2px 6px;', '−');
@@ -153,9 +154,11 @@
 
   function sendLeadName(force = false) {
     const name = getLeadName();
-    if (!force && name === lastLeadName && trackerFrame.contentWindow) return;
+    const url = window.location.href;
+    if (!force && name === lastLeadName && url === lastLeadUrl && trackerFrame.contentWindow) return;
     lastLeadName = name;
-    trackerFrame.contentWindow?.postMessage({ type: 'setting-tracker:lead', name }, '*');
+    lastLeadUrl = url;
+    trackerFrame.contentWindow?.postMessage({ type: 'setting-tracker:lead', name, url }, '*');
   }
 
   function render() {
@@ -173,11 +176,33 @@
     messageView.textContent = '';
     messageList.textContent = '';
     messages.forEach((m, i) => {
-      const use = make('button', BTN, m.label);
+      if (editingIndex === i) {
+        messageList.appendChild(buildEditForm(m, (label, text) => {
+          messages = messages.map((msg, idx) => (idx === i ? { label, text } : msg));
+          editingIndex = null; save(); render();
+        }, () => { editingIndex = null; render(); }));
+        return;
+      }
+      const row = make('div', 'display:flex;gap:4px;align-items:stretch;');
+      const use = make('button', BTN + 'flex:1;', m.label);
       use.type = 'button';
       use.title = buildMessage(m.text);
       use.onclick = () => { status = fillComposer(buildMessage(m.text)) ? '' : 'Open a conversation first.'; render(); };
-      messageList.appendChild(use);
+      const edit = make('button', BTN + 'flex:0 0 auto;padding:6px 8px;', '✎');
+      edit.type = 'button';
+      edit.title = 'Edit message';
+      edit.onclick = () => { adding = false; editingIndex = i; status = ''; render(); };
+      const del = make('button', BTN + 'flex:0 0 auto;padding:6px 8px;border-color:#9b3034;color:#9b3034;', '✕');
+      del.type = 'button';
+      del.title = 'Delete message';
+      del.onclick = () => {
+        if (!window.confirm(`Delete "${m.label}"?`)) return;
+        messages = messages.filter((_, idx) => idx !== i);
+        if (editingIndex === i) editingIndex = null;
+        save(); render();
+      };
+      row.append(use, edit, del);
+      messageList.appendChild(row);
     });
     messageView.appendChild(messageList);
     const firstButton = messageList.firstElementChild;
@@ -186,6 +211,7 @@
       messageList.style.maxHeight = `${rowHeight * MAX_VISIBLE_MESSAGES - 6}px`;
     }
     if (status) messageView.appendChild(make('div', 'color:#9b3034;', status));
+    if (editingIndex !== null) return;
     if (!adding) {
       const add = make('button', BTN + 'border-style:dashed;', '+ Add message');
       add.type = 'button';
@@ -193,19 +219,29 @@
       messageView.appendChild(add);
       return;
     }
+    messageView.appendChild(buildEditForm(null, (label, text) => {
+      messages = [...messages, { label, text }];
+      adding = false; save(); render();
+    }, () => { adding = false; render(); }));
+  }
+
+  // Builds a label/text/Save/Cancel form, pre-filled when editing an existing message (`m` is null when adding).
+  function buildEditForm(m, onSave, onCancel) {
+    const form = make('div', 'display:flex;flex-direction:column;gap:6px;');
     const label = make('input', FIELD); label.placeholder = 'Button name';
     const text = make('textarea', FIELD + 'height:110px;resize:vertical;'); text.placeholder = 'Message. Use {name} for the first name.';
+    if (m) { label.value = m.label; text.value = m.text; }
     const ok = make('button', BTN, 'Save');
     const cancel = make('button', BTN + 'border-color:#999;color:#666;', 'Cancel');
     ok.type = cancel.type = 'button';
     ok.onclick = () => {
       if (!label.value.trim() || !text.value.trim()) return;
-      messages = [...messages, { label: label.value.trim(), text: text.value }];
-      adding = false; save(); render();
+      onSave(label.value.trim(), text.value);
     };
-    cancel.onclick = () => { adding = false; render(); };
-    messageView.append(label, text, ok, cancel);
-    label.focus();
+    cancel.onclick = onCancel;
+    form.append(label, text, ok, cancel);
+    requestAnimationFrame(() => label.focus());
+    return form;
   }
 
   let leadUpdateQueued = false;
