@@ -12,7 +12,11 @@
   h2{font-size:14px;color:#9ca3af;margin:20px 0 6px;font-weight:600}
   input[type=date],input[type=text],input[type=datetime-local]{padding:8px;border-radius:6px;border:0}
   button{border:0;border-radius:8px;background:#374151;color:#fff;cursor:pointer;font-size:15px;padding:10px 14px}
-  #newCall{width:100%;background:#16a34a;font-size:22px;font-weight:700;padding:16px}
+  .outreach-actions{display:flex;gap:8px}
+  .outreach-actions button{flex:1;font-weight:700;padding:14px 8px}
+  .outreach-actions button.selected,#viewTabs button.selected{background:#16a34a}
+  #viewTabs{display:flex;gap:8px;margin:16px 0 0}
+  #viewTabs button{flex:1}
   .card{background:#1f2937;border-radius:10px;padding:12px;margin:8px 0}
   .card.active{outline:2px solid #16a34a}
   .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
@@ -37,16 +41,25 @@
 <body>
 <main>
   <header><h1>Setting Tracker</h1><input type="date" id="date"></header>
-  <button id="newCall">+ New call</button>
+  <div class="outreach-actions">
+    <button id="newCall">+ New call</button>
+    <button id="newDm">+ New DM</button>
+    <button id="newEmail">+ New email</button>
+  </div>
   <div id="active"></div>
-  <details class="card"><summary>Manage metrics</summary>
+  <div id="viewTabs" role="group" aria-label="Channel stats">
+    <button data-channel="call">Calls</button>
+    <button data-channel="dm">DMs</button>
+    <button data-channel="email">Emails</button>
+  </div>
+  <details class="card"><summary id="metricsTitle">Manage metrics</summary>
     <div class="top" style="margin-top:8px"><input type="text" id="newMetric" placeholder="New metric, e.g. voicemail"><button id="addMetric">Add</button></div>
     <div class="tags" id="metricList"></div>
   </details>
   <h2>Today's totals</h2>
   <div class="sum" id="sum"></div>
   <p class="rate" id="rate"></p>
-  <h2>Calls</h2>
+  <h2>Outreach</h2>
   <div id="list"></div>
 </main>
 <script src="tracker.js"></script>

@@ -2,18 +2,32 @@ const KEY_CALLS = 'tracker.calls';
 const KEY_METRICS = 'tracker.metrics';
 const KEY_REASON_OPTIONS = 'tracker.reasonOptions';
 const BASE_STAGES = ['pickup', 'no answer', 'didnt proceed', 'something happened before the call', 'pitched', 'booked'];
+const MESSAGE_STAGES = ['something happened before the text'];
 const FIELD = {
   'no answer': 'noAnswer',
   'didnt proceed': 'didntProceed',
-  'something happened before the call': 'somethingBeforeCall'
+  'something happened before the call': 'somethingBeforeCall',
+  'something happened before the text': 'somethingBeforeText'
 };
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const clone = (value) => JSON.parse(JSON.stringify(value));
 let metrics = load(KEY_METRICS, []);
 let REASON_OPTIONS = load(KEY_REASON_OPTIONS, ['not interested', 'had to go', 'just curious']);
-const field = (s) => FIELD[s] || (BASE_STAGES.includes(s) ? s : `x:${s}`);
-const allStages = () => [...BASE_STAGES, ...metrics];
-const allButtons = () => ['outbound dials', ...allStages()];
+const CHANNELS = ['call', 'dm', 'email'];
+const CHANNEL_LABEL = { call: 'Call', dm: 'DM', email: 'Email' };
+const ACTIVITY = { call: 'outbound dials', dm: 'outbound DMs', email: 'outbound emails' };
+const chOf = (entry) => entry.channel || 'call';
+// Custom metrics are stored in one list; call metrics stay unprefixed so existing data keeps working.
+const metricPrefix = (channel) => (channel === 'call' ? '' : `${channel}:`);
+const isReservedMetricName = (name) => CHANNELS.some((c) => c !== 'call' && name.startsWith(`${c}:`));
+const metricsFor = (channel) => metrics
+  .filter((m) => (channel === 'call' ? !isReservedMetricName(m) : m.startsWith(metricPrefix(channel))))
+  .map((m) => m.slice(metricPrefix(channel).length));
+const field = (s, channel = 'call') => FIELD[s] || (BASE_STAGES.includes(s) ? s : `x:${metricPrefix(channel)}${s}`);
+const baseStagesFor = (channel) => (channel === 'call' ? BASE_STAGES : MESSAGE_STAGES);
+const stagesFor = (entry) => [...baseStagesFor(chOf(entry)), ...metricsFor(chOf(entry))];
+const allButtons = (channel) => [ACTIVITY[channel], ...baseStagesFor(channel), ...metricsFor(channel)];
+let viewChannel = 'call';
 let calls = load(KEY_CALLS, []);
 let savedState = { calls: clone(calls), metrics: clone(metrics), reasons: clone(REASON_OPTIONS) };
 for (const call of calls) {
@@ -42,12 +56,18 @@ function derive() {
     if (call.done === false) continue;
     const t = new Date(call.time);
     const date = dayOf(t), hour = t.getHours();
-    const day = counts[date] || (counts[date] = {});
+    const channel = chOf(call);
+    const perChannel = counts[channel] || (counts[channel] = {});
+    const day = perChannel[date] || (perChannel[date] = {});
     const slot = (hourly[date] || (hourly[date] = {}))[hour] || (hourly[date][hour] = {});
-    day['outbound dials'] = (day['outbound dials'] || 0) + 1; slot.dials = (slot.dials || 0) + 1;
-    for (const s of allStages()) if (call[field(s)]) day[s] = (day[s] || 0) + 1;
-    if (call.pickup) slot.pickup = (slot.pickup || 0) + 1;
-    if (call.didntProceed) (reasons[date] || (reasons[date] = [])).push(reasonText(call) || '(no reason)');
+    const activity = ACTIVITY[channel];
+    day[activity] = (day[activity] || 0) + 1;
+    if (channel === 'call') {
+      slot.dials = (slot.dials || 0) + 1;
+      if (call.pickup) slot.pickup = (slot.pickup || 0) + 1;
+      if (call.didntProceed) (reasons[date] || (reasons[date] = [])).push(reasonText(call) || '(no reason)');
+    }
+    for (const s of stagesFor(call)) if (call[field(s, channel)]) day[s] = (day[s] || 0) + 1;
   }
 }
 function mergeCalls(base, edited, latest) {
@@ -138,7 +158,7 @@ window.addEventListener('storage', (event) => {
   applyStoredState(latest);
   render();
 });
-const todays = () => calls.filter((c) => dayOf(new Date(c.time)) === dateEl.value);
+const todays = () => calls.filter((c) => chOf(c) === viewChannel && dayOf(new Date(c.time)) === dateEl.value);
 
 window.addEventListener('message', (event) => {
   if (event.source !== parent || event.data?.type !== 'setting-tracker:lead') return;
@@ -160,17 +180,18 @@ window.addEventListener('message', (event) => {
 });
 
 function toggle(call, stage) {
-  const key = field(stage);
+  const key = field(stage, chOf(call));
   call[key] = !call[key];
   if (!call[key] && key === 'didntProceed') { call.reasons = []; call.note = ''; }
   if (!call[key] && key === 'somethingBeforeCall') call.somethingBeforeCallContext = '';
+  if (!call[key] && key === 'somethingBeforeText') call.somethingBeforeTextContext = '';
 }
 function tagButtons(call) {
   const wrap = document.createElement('div'); wrap.className = 'tags';
-  for (const stage of allStages()) {
+  for (const stage of stagesFor(call)) {
     const b = document.createElement('button');
     b.textContent = stage;
-    if (call[field(stage)]) b.className = 'on' + (stage === 'didnt proceed' || stage === 'no answer' ? ' bad' : '');
+    if (call[field(stage, chOf(call))]) b.className = 'on' + (stage === 'didnt proceed' || stage === 'no answer' ? ' bad' : '');
     b.onclick = () => { toggle(call, stage); save(); };
     wrap.append(b);
   }
@@ -190,25 +211,30 @@ function stopTimer(call) {
 setInterval(() => {
   const el = document.getElementById('talkTimer');
   const active = calls.find((c) => c.id === activeId);
-  if (el && active) el.textContent = formatTalk(talkMs(active));
+  if (el && active && (!active.channel || active.channel === 'call')) el.textContent = formatTalk(talkMs(active));
 }, 500);
 
-const hasResult = (call) => allStages().some((s) => call[field(s)]);
+const hasResult = (call) => stagesFor(call).some((s) => call[field(s, chOf(call))]) || (chOf(call) !== 'call' && !!call.msgText);
 function describe(call) {
-  const tags = allStages().filter((s) => call[field(s)]);
+  const tags = stagesFor(call).filter((s) => call[field(s, chOf(call))]);
+  if (chOf(call) !== 'call' && call.msgText) tags.unshift(`sent: ${call.msgText}`);
   if (call.done === false) return 'in progress (not counted until Done)' + (tags.length ? ': ' + tags.join(' › ') : '');
-  const talk = call.talkMs ? ` · talk ${formatTalk(call.talkMs)}` : '';
+  const talk = (call.talkMs && (!call.channel || call.channel === 'call')) ? ` · talk ${formatTalk(call.talkMs)}` : '';
   const context = [];
   if (call.didntProceed && reasonText(call)) context.push(reasonText(call));
   if (call.somethingBeforeCall && call.somethingBeforeCallContext) context.push(`before call: ${call.somethingBeforeCallContext}`);
+  if (call.somethingBeforeText && call.somethingBeforeTextContext) context.push(`before text: ${call.somethingBeforeTextContext}`);
+  if (call.channel === 'email' && call.subject) context.push(`subject: ${call.subject}`);
   return (tags.length ? tags.join(' › ') + (context.length ? ` (${context.join('; ')})` : '') : 'no result yet') + talk;
 }
 
 function renderMetrics() {
   const list = document.getElementById('metricList'); list.textContent = '';
-  for (const m of metrics) {
+  document.getElementById('metricsTitle').textContent = `Manage ${CHANNEL_LABEL[viewChannel]} metrics`;
+  for (const m of metricsFor(viewChannel)) {
+    const stored = metricPrefix(viewChannel) + m;
     const b = document.createElement('button'); b.textContent = `✕ ${m}`; b.title = 'Remove metric (past data is kept but hidden)';
-    b.onclick = () => { if (confirm(`Remove "${m}"?`)) { metrics = metrics.filter((x) => x !== m); save(); } };
+    b.onclick = () => { if (confirm(`Remove "${m}"?`)) { metrics = metrics.filter((x) => x !== stored); save(); } };
     list.append(b);
   }
 }
@@ -216,8 +242,8 @@ document.getElementById('addMetric').onclick = () => {
   const el = document.getElementById('newMetric');
   const name = el.value.trim().toLowerCase();
   el.value = '';
-  if (!name || allButtons().includes(name)) return;
-  metrics.push(name); save();
+  if (!name || isReservedMetricName(name) || allButtons(viewChannel).includes(name)) return;
+  metrics.push(metricPrefix(viewChannel) + name); save();
 };
 document.getElementById('newMetric').onkeydown = (e) => { if (e.key === 'Enter') document.getElementById('addMetric').click(); };
 
@@ -225,6 +251,12 @@ function render() {
   derive();
   renderMetrics();
   const active = calls.find((c) => c.id === activeId);
+  for (const [channel, id] of [['call', 'newCall'], ['dm', 'newDm'], ['email', 'newEmail']]) {
+    const button = document.getElementById(id);
+    const selected = !!active && (active.channel || 'call') === channel;
+    button.classList.toggle('selected', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  }
   const box = document.getElementById('active');
   box.textContent = '';
   if (active) {
@@ -236,27 +268,49 @@ function render() {
       if (active.lead !== autoLead) autoLead = '';
       save();
     };
-    const callTime = document.createElement('input');
-    callTime.type = 'datetime-local';
-    callTime.className = 'call-time';
-    callTime.setAttribute('aria-label', 'Call date and time');
-    callTime.value = localDateTimeValue(active.time);
-    callTime.onchange = () => {
-      const updatedTime = new Date(callTime.value);
+    const entryTime = document.createElement('input');
+    entryTime.type = 'datetime-local';
+    entryTime.className = 'call-time';
+    entryTime.setAttribute('aria-label', 'Outreach date and time');
+    entryTime.value = localDateTimeValue(active.time);
+    entryTime.onchange = () => {
+      const updatedTime = new Date(entryTime.value);
       if (Number.isNaN(updatedTime.getTime())) return;
       active.time = updatedTime.toISOString();
       dateEl.value = dayOf(updatedTime);
       save();
     };
-    const timer = document.createElement('div'); timer.className = 'timer';
-    const timerText = document.createElement('span'); timerText.id = 'talkTimer'; timerText.textContent = formatTalk(talkMs(active));
-    const timerBtn = document.createElement('button');
-    timerBtn.textContent = active.timerStart ? 'Stop timer' : 'Resume timer';
-    timerBtn.onclick = () => {
-      if (active.timerStart) stopTimer(active); else active.timerStart = new Date().toISOString();
-      save();
-    };
-    timer.append('Talk time ', timerText, timerBtn);
+    let timer;
+    if (!active.channel || active.channel === 'call') {
+      timer = document.createElement('div'); timer.className = 'timer';
+      const timerText = document.createElement('span'); timerText.id = 'talkTimer'; timerText.textContent = formatTalk(talkMs(active));
+      const timerBtn = document.createElement('button');
+      timerBtn.textContent = active.timerStart ? 'Stop timer' : 'Resume timer';
+      timerBtn.onclick = () => {
+        if (active.timerStart) stopTimer(active); else active.timerStart = new Date().toISOString();
+        save();
+      };
+      timer.append('Talk time ', timerText, timerBtn);
+    }
+    let subject;
+    if (active.channel === 'email') {
+      subject = document.createElement('input');
+      subject.type = 'text';
+      subject.placeholder = 'Email subject (optional)';
+      subject.value = active.subject || '';
+      subject.style.cssText = 'width:100%;box-sizing:border-box;margin-top:8px';
+      subject.setAttribute('aria-label', 'Email subject');
+      subject.onchange = () => { active.subject = subject.value.trim(); save(); };
+    }
+    let msgField;
+    if (active.channel === 'dm' || active.channel === 'email') {
+      msgField = document.createElement('textarea');
+      msgField.placeholder = 'Message sent';
+      msgField.value = active.msgText || '';
+      msgField.setAttribute('aria-label', 'Message sent');
+      msgField.style.cssText = 'width:100%;box-sizing:border-box;margin-top:8px;min-height:64px';
+      msgField.onchange = () => { active.msgText = msgField.value.trim(); save(); };
+    }
     const done = document.createElement('button'); done.textContent = 'Done'; done.onclick = () => {
       stopTimer(active);
       if (hasResult(active)) active.done = true; else calls = calls.filter((x) => x !== active);
@@ -264,7 +318,11 @@ function render() {
       save();
     };
     top.append(name, done);
-    card.append(top, timer, callTime, tagButtons(active));
+    card.append(top);
+    if (timer) card.append(timer);
+    if (subject) card.append(subject);
+    if (msgField) card.append(msgField);
+    card.append(entryTime, tagButtons(active));
     if (active.didntProceed) {
       const wrap = document.createElement('div'); wrap.style.cssText = 'margin-top:10px';
       for (const option of REASON_OPTIONS) {
@@ -309,25 +367,40 @@ function render() {
       context.onchange = () => { active.somethingBeforeCallContext = context.value.trim(); save(); };
       card.append(context);
     }
+    if (active.somethingBeforeText) {
+      const context = document.createElement('textarea');
+      context.placeholder = 'What happened before the text? (optional)';
+      context.value = active.somethingBeforeTextContext || '';
+      context.setAttribute('aria-label', 'Context about what happened before the text');
+      context.style.cssText = 'width:100%;box-sizing:border-box;margin-top:10px;min-height:64px';
+      context.onchange = () => { active.somethingBeforeTextContext = context.value.trim(); save(); };
+      card.append(context);
+    }
     box.append(card);
   }
-  const day = counts[dateEl.value] || {};
+  const day = (counts[viewChannel] || {})[dateEl.value] || {};
+  for (const tab of document.querySelectorAll('#viewTabs button')) {
+    const on = tab.dataset.channel === viewChannel;
+    tab.classList.toggle('selected', on);
+    tab.setAttribute('aria-pressed', String(on));
+  }
   const sum = document.getElementById('sum'); sum.textContent = '';
-  for (const b of allButtons()) {
+  for (const b of allButtons(viewChannel)) {
     const d = document.createElement('div');
     const n = document.createElement('b'); n.textContent = day[b] || 0;
     const l = document.createElement('span'); l.textContent = b;
     d.append(n, l); sum.append(d);
   }
-  const dialCount = day['outbound dials'] || 0;
-  document.getElementById('rate').textContent = dialCount ? `Pickup rate: ${Math.round(((day.pickup || 0) / dialCount) * 100)}% (${day.pickup || 0}/${dialCount})` : '';
+  const dialCount = day[ACTIVITY.call] || 0;
+  document.getElementById('rate').textContent = viewChannel === 'call' && dialCount ? `Call pickup rate: ${Math.round(((day.pickup || 0) / dialCount) * 100)}% (${day.pickup || 0}/${dialCount})` : '';
   const list = document.getElementById('list'); list.textContent = '';
   for (const call of todays().reverse()) {
     if (call.id === activeId) continue;
     const card = document.createElement('div'); card.className = 'card';
     const top = document.createElement('div'); top.className = 'top';
     const time = new Date(call.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    const label = document.createElement('span'); label.className = 'meta'; label.textContent = `${time}${call.lead ? ' · ' + call.lead : ''}`;
+    const channel = CHANNEL_LABEL[chOf(call)];
+    const label = document.createElement('span'); label.className = 'meta'; label.textContent = `${time} · ${channel}${call.lead ? ' · ' + call.lead : ''}`;
     top.append(label);
     if (call.leadUrl) {
       try {
@@ -345,9 +418,9 @@ function render() {
         console.warn('Ignoring invalid saved GoHighLevel lead URL.', error);
       }
     }
-    const edit = document.createElement('button'); edit.className = 'x'; edit.textContent = 'edit'; edit.onclick = () => { stopTimer(calls.find((x) => x.id === activeId)); activeId = call.id; save(); };
+    const edit = document.createElement('button'); edit.className = 'x'; edit.textContent = 'edit';     edit.onclick = () => { stopTimer(calls.find((x) => x.id === activeId)); activeId = call.id; viewChannel = chOf(call); save(); };
     const del = document.createElement('button'); del.className = 'x'; del.textContent = 'delete';
-    del.onclick = () => { if (confirm('Delete this call?')) { calls = calls.filter((c) => c !== call); save(); } };
+        del.onclick = () => { if (confirm(`Delete this ${CHANNEL_LABEL[chOf(call)].toLowerCase()}?`)) { calls = calls.filter((c) => c !== call); save(); } };
     const spacer = document.createElement('span'); spacer.style.flex = '1';
     top.append(spacer, edit, del);
     const s = document.createElement('div'); s.className = 'summary'; s.textContent = describe(call);
@@ -355,13 +428,22 @@ function render() {
   }
 }
 
-document.getElementById('newCall').onclick = () => {
+function startEntry(channel) {
   const open = calls.find((x) => x.id === activeId);
-  if (open && !hasResult(open)) return;
-  if (open) { stopTimer(open); open.done = true; }
+  if (open && !hasResult(open)) {
+    if ((open.channel || 'call') === channel) return;
+    calls = calls.filter((x) => x !== open);
+  } else if (open) { stopTimer(open); open.done = true; }
   const now = new Date().toISOString();
-  const call = { id: crypto.randomUUID(), time: now, lead: currentGhlLead, leadUrl: currentGhlUrl, done: false, talkMs: 0, timerStart: now };
-  calls.push(call); activeId = call.id; autoLead = currentGhlLead; save();
-};
+  const entry = { id: crypto.randomUUID(), channel, time: now, lead: currentGhlLead, leadUrl: currentGhlUrl, done: false };
+  if (channel === 'call') { entry.talkMs = 0; entry.timerStart = now; }
+  calls.push(entry); activeId = entry.id; viewChannel = channel; autoLead = currentGhlLead; save();
+}
+document.getElementById('newCall').onclick = () => startEntry('call');
+document.getElementById('newDm').onclick = () => startEntry('dm');
+document.getElementById('newEmail').onclick = () => startEntry('email');
+for (const tab of document.querySelectorAll('#viewTabs button')) {
+  tab.onclick = () => { viewChannel = tab.dataset.channel; render(); };
+}
 dateEl.onchange = render;
 render();
