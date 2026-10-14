@@ -1,8 +1,12 @@
 const KEY_CALLS = 'tracker.calls';
 const KEY_METRICS = 'tracker.metrics';
 const KEY_REASON_OPTIONS = 'tracker.reasonOptions';
-const BASE_STAGES = ['pickup', 'no answer', 'didnt proceed', 'pitched', 'booked'];
-const FIELD = { 'no answer': 'noAnswer', 'didnt proceed': 'didntProceed' };
+const BASE_STAGES = ['pickup', 'no answer', 'didnt proceed', 'something happened before the call', 'pitched', 'booked'];
+const FIELD = {
+  'no answer': 'noAnswer',
+  'didnt proceed': 'didntProceed',
+  'something happened before the call': 'somethingBeforeCall'
+};
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const clone = (value) => JSON.parse(JSON.stringify(value));
 let metrics = load(KEY_METRICS, []);
@@ -159,6 +163,7 @@ function toggle(call, stage) {
   const key = field(stage);
   call[key] = !call[key];
   if (!call[key] && key === 'didntProceed') { call.reasons = []; call.note = ''; }
+  if (!call[key] && key === 'somethingBeforeCall') call.somethingBeforeCallContext = '';
 }
 function tagButtons(call) {
   const wrap = document.createElement('div'); wrap.className = 'tags';
@@ -193,7 +198,10 @@ function describe(call) {
   const tags = allStages().filter((s) => call[field(s)]);
   if (call.done === false) return 'in progress (not counted until Done)' + (tags.length ? ': ' + tags.join(' › ') : '');
   const talk = call.talkMs ? ` · talk ${formatTalk(call.talkMs)}` : '';
-  return (tags.length ? tags.join(' › ') + (call.didntProceed && reasonText(call) ? ` (${reasonText(call)})` : '') : 'no result yet') + talk;
+  const context = [];
+  if (call.didntProceed && reasonText(call)) context.push(reasonText(call));
+  if (call.somethingBeforeCall && call.somethingBeforeCallContext) context.push(`before call: ${call.somethingBeforeCallContext}`);
+  return (tags.length ? tags.join(' › ') + (context.length ? ` (${context.join('; ')})` : '') : 'no result yet') + talk;
 }
 
 function renderMetrics() {
@@ -291,6 +299,15 @@ function render() {
       manage.onclick = () => { removing = !removing; render(); };
       addRow.append(newReason, addReason, manage);
       card.append(wrap, note, addRow);
+    }
+    if (active.somethingBeforeCall) {
+      const context = document.createElement('textarea');
+      context.placeholder = 'What happened before the call? (optional)';
+      context.value = active.somethingBeforeCallContext || '';
+      context.setAttribute('aria-label', 'Context about what happened before the call');
+      context.style.cssText = 'width:100%;box-sizing:border-box;margin-top:10px;min-height:64px';
+      context.onchange = () => { active.somethingBeforeCallContext = context.value.trim(); save(); };
+      card.append(context);
     }
     box.append(card);
   }
