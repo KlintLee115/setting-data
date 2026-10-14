@@ -198,34 +198,17 @@ function tagButtons(call) {
   return wrap;
 }
 
-const talkMs = (call) => (call.talkMs || 0) + (call.timerStart ? Math.max(0, Date.now() - new Date(call.timerStart).getTime()) : 0);
-const formatTalk = (ms) => {
-  const s = Math.floor(ms / 1000);
-  return `${pad2(Math.floor(s / 60))}:${pad2(s % 60)}`;
-};
-function stopTimer(call) {
-  if (!call || !call.timerStart) return;
-  call.talkMs = talkMs(call);
-  delete call.timerStart;
-}
-setInterval(() => {
-  const el = document.getElementById('talkTimer');
-  const active = calls.find((c) => c.id === activeId);
-  if (el && active && (!active.channel || active.channel === 'call')) el.textContent = formatTalk(talkMs(active));
-}, 500);
-
 const hasResult = (call) => stagesFor(call).some((s) => call[field(s, chOf(call))]) || (chOf(call) !== 'call' && !!call.msgText);
 function describe(call) {
   const tags = stagesFor(call).filter((s) => call[field(s, chOf(call))]);
   if (chOf(call) !== 'call' && call.msgText) tags.unshift(`sent: ${call.msgText}`);
   if (call.done === false) return 'in progress (not counted until Done)' + (tags.length ? ': ' + tags.join(' › ') : '');
-  const talk = (call.talkMs && (!call.channel || call.channel === 'call')) ? ` · talk ${formatTalk(call.talkMs)}` : '';
   const context = [];
   if (call.didntProceed && reasonText(call)) context.push(reasonText(call));
   if (call.somethingBeforeCall && call.somethingBeforeCallContext) context.push(`before call: ${call.somethingBeforeCallContext}`);
   if (call.somethingBeforeText && call.somethingBeforeTextContext) context.push(`before text: ${call.somethingBeforeTextContext}`);
   if (call.channel === 'email' && call.subject) context.push(`subject: ${call.subject}`);
-  return (tags.length ? tags.join(' › ') + (context.length ? ` (${context.join('; ')})` : '') : 'no result yet') + talk;
+  return (tags.length ? tags.join(' › ') + (context.length ? ` (${context.join('; ')})` : '') : 'no result yet');
 }
 
 function renderMetrics() {
@@ -280,18 +263,6 @@ function render() {
       dateEl.value = dayOf(updatedTime);
       save();
     };
-    let timer;
-    if (!active.channel || active.channel === 'call') {
-      timer = document.createElement('div'); timer.className = 'timer';
-      const timerText = document.createElement('span'); timerText.id = 'talkTimer'; timerText.textContent = formatTalk(talkMs(active));
-      const timerBtn = document.createElement('button');
-      timerBtn.textContent = active.timerStart ? 'Stop timer' : 'Resume timer';
-      timerBtn.onclick = () => {
-        if (active.timerStart) stopTimer(active); else active.timerStart = new Date().toISOString();
-        save();
-      };
-      timer.append('Talk time ', timerText, timerBtn);
-    }
     let subject;
     if (active.channel === 'email') {
       subject = document.createElement('input');
@@ -312,14 +283,12 @@ function render() {
       msgField.onchange = () => { active.msgText = msgField.value.trim(); save(); };
     }
     const done = document.createElement('button'); done.textContent = 'Done'; done.onclick = () => {
-      stopTimer(active);
       if (hasResult(active)) active.done = true; else calls = calls.filter((x) => x !== active);
       activeId = null; autoLead = '';
       save();
     };
     top.append(name, done);
     card.append(top);
-    if (timer) card.append(timer);
     if (subject) card.append(subject);
     if (msgField) card.append(msgField);
     card.append(entryTime, tagButtons(active));
@@ -418,9 +387,9 @@ function render() {
         console.warn('Ignoring invalid saved GoHighLevel lead URL.', error);
       }
     }
-    const edit = document.createElement('button'); edit.className = 'x'; edit.textContent = 'edit';     edit.onclick = () => { stopTimer(calls.find((x) => x.id === activeId)); activeId = call.id; viewChannel = chOf(call); save(); };
+    const edit = document.createElement('button'); edit.className = 'x'; edit.textContent = 'edit'; edit.onclick = () => { activeId = call.id; viewChannel = chOf(call); save(); };
     const del = document.createElement('button'); del.className = 'x'; del.textContent = 'delete';
-        del.onclick = () => { if (confirm(`Delete this ${CHANNEL_LABEL[chOf(call)].toLowerCase()}?`)) { calls = calls.filter((c) => c !== call); save(); } };
+    del.onclick = () => { if (confirm(`Delete this ${CHANNEL_LABEL[chOf(call)].toLowerCase()}?`)) { calls = calls.filter((c) => c !== call); save(); } };
     const spacer = document.createElement('span'); spacer.style.flex = '1';
     top.append(spacer, edit, del);
     const s = document.createElement('div'); s.className = 'summary'; s.textContent = describe(call);
@@ -433,10 +402,9 @@ function startEntry(channel) {
   if (open && !hasResult(open)) {
     if ((open.channel || 'call') === channel) return;
     calls = calls.filter((x) => x !== open);
-  } else if (open) { stopTimer(open); open.done = true; }
+  } else if (open) open.done = true;
   const now = new Date().toISOString();
   const entry = { id: crypto.randomUUID(), channel, time: now, lead: currentGhlLead, leadUrl: currentGhlUrl, done: false };
-  if (channel === 'call') { entry.talkMs = 0; entry.timerStart = now; }
   calls.push(entry); activeId = entry.id; viewChannel = channel; autoLead = currentGhlLead; save();
 }
 document.getElementById('newCall').onclick = () => startEntry('call');
