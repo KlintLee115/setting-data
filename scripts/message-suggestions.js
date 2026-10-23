@@ -148,6 +148,19 @@
   trackerFrame.title = 'Setting Tracker';
   trackerFrame.src = chrome.runtime.getURL('tracker/index.html');
   trackerFrame.addEventListener('load', () => sendLeadName(true));
+  window.addEventListener('message', (event) => {
+    if (event.source === trackerFrame.contentWindow && event.data?.type === 'setting-tracker:focus') trackerFrame.focus();
+  });
+  // N/P/B work anywhere on the GHL page except while typing; they are forwarded to the tracker.
+  window.addEventListener('keydown', (event) => {
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat) return;
+    const key = event.key.toLowerCase();
+    if (!['n', 'p', 'b', 'h'].includes(key)) return;
+    const origin = event.composedPath()[0];
+    if (origin === trackerFrame) return;
+    if (origin instanceof HTMLElement && (origin.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(origin.tagName))) return;
+    trackerFrame.contentWindow?.postMessage({ type: 'setting-tracker:key', key }, '*');
+  }, true);
   panel.append(titlebar, nav, messageView, trackerFrame);
   makeDraggable(panel, panel);
   makeDraggable(restore, restore);
@@ -187,7 +200,10 @@
       const use = make('button', BTN + 'flex:1;', m.label);
       use.type = 'button';
       use.title = buildMessage(m.text);
-      use.onclick = () => { status = fillComposer(buildMessage(m.text)) ? '' : 'Open a conversation first.'; render(); };
+      use.onclick = () => {
+        status = fillComposer(buildMessage(m.text)) ? '' : 'Open a conversation first.';
+        render();
+      };
       const edit = make('button', BTN + 'flex:0 0 auto;padding:6px 8px;', '✎');
       edit.type = 'button';
       edit.title = 'Edit message';

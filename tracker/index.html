@@ -10,14 +10,17 @@
   header{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}
   h1{font-size:20px;margin:0}
   h2{font-size:14px;color:#9ca3af;margin:20px 0 6px;font-weight:600}
+  .section-heading{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .section-heading button{font-size:13px;padding:6px 10px}
+  .section-heading button[aria-pressed="true"]{background:#92400e;color:#fff}
   input[type=date],input[type=text],input[type=datetime-local]{padding:8px;border-radius:6px;border:0}
   button{border:0;border-radius:8px;background:#374151;color:#fff;cursor:pointer;font-size:15px;padding:10px 14px}
-  .outreach-actions{display:flex;gap:8px}
-  .outreach-actions button{flex:1;font-weight:700;padding:14px 8px}
-  .outreach-actions button.selected,#viewTabs button.selected{background:#16a34a}
-  #viewTabs{display:flex;gap:8px;margin:16px 0 0}
-  #viewTabs button{flex:1}
+  .outreach-actions{display:flex;flex-wrap:wrap;gap:8px}
+  .outreach-actions button{flex:1 1 calc(50% - 8px);font-weight:700;padding:14px 8px}
+  .outreach-actions button.selected{background:#16a34a}
   .card{background:#1f2937;border-radius:10px;padding:12px;margin:8px 0}
+  .entry-call{background:#1b2d27;border-left:3px solid #16a34a}
+  .entry-highlight{background:#33290f;border-left:3px solid #f59e0b;box-shadow:0 0 0 1px #f59e0b}
   .card.active{outline:2px solid #16a34a}
   .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .tags button.on{background:#2563eb}
@@ -33,6 +36,8 @@
   .rate{color:#9ca3af;font-size:14px}
   .x{background:none;color:#6b7280;padding:4px 8px;font-size:13px}
   .summary{color:#d1d5db;font-size:13px;margin-top:6px}
+  .metrics{margin-top:10px;padding:8px 10px;background:#111827;border-radius:8px}
+  .metrics summary{cursor:pointer;color:#d1d5db;font-size:13px;font-weight:600}
   @media(max-width:400px){body{padding:12px}.sum div{min-width:56px;padding:8px}}
 </style>
 </head>
@@ -40,25 +45,17 @@
 <main>
   <header><h1>Setting Tracker</h1><input type="date" id="date"></header>
   <div class="outreach-actions">
-    <button id="newCall">+ New call</button>
-    <button id="newDm">+ New DM</button>
-    <button id="newEmail">+ New email</button>
+    <button data-outcome="no answer" title="Log a no-answer call (N)" aria-keyshortcuts="N">No answer (N)</button>
+    <button data-outcome="didnt pitch" title="Log a call that didn't get pitched (P)" aria-keyshortcuts="P">Didn't pitch (P)</button>
+    <button data-outcome="didnt book" title="Log a pitched call that didn't book (B)" aria-keyshortcuts="B">Didn't book (B)</button>
+    <button data-outcome="booked" title="Log a booked call">Booked</button>
   </div>
   <div id="active"></div>
-  <div id="viewTabs" role="group" aria-label="Channel stats">
-    <button data-channel="call">Calls</button>
-    <button data-channel="dm">DMs</button>
-    <button data-channel="email">Emails</button>
-  </div>
-  <details class="card"><summary id="metricsTitle">Manage metrics</summary>
-    <div class="top" style="margin-top:8px"><input type="text" id="newMetric" placeholder="New metric, e.g. voicemail"><button id="addMetric">Add</button></div>
-    <div class="tags" id="metricList"></div>
-  </details>
+  <div class="section-heading"><h2>Outreach</h2><button id="review-filter" type="button" aria-pressed="false">☆ Review only</button></div>
+  <div id="list"></div>
   <h2>Today's totals</h2>
   <div class="sum" id="sum"></div>
   <p class="rate" id="rate"></p>
-  <h2>Outreach</h2>
-  <div id="list"></div>
 </main>
 <script src="tracker.js"></script>
 </body>
