@@ -11,7 +11,7 @@
         "https://*.gohighlevel.com/*",
         "https://*.msgsndr.com/*"
       ],
-      "js": ["scripts/message-suggestions.js"],
+      "js": ["scripts/message-suggestions.js", "scripts/auto-follow.js"],
       "run_at": "document_idle"
     }
   ],
