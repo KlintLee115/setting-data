@@ -52,12 +52,14 @@ let activeId = null;
 let whyId = null;
 let metricsOpen = false;
 let highlightsOnly = false;
+let bookedOnly = false;
 let currentGhlLead = '';
 let currentGhlUrl = '';
 let autoLead = '';
 let counts = {};
 const dateEl = document.getElementById('date');
 const reviewFilterEl = document.getElementById('review-filter');
+const bookedFilterEl = document.getElementById('booked-filter');
 const pad2 = (n) => String(n).padStart(2, '0');
 const dayOf = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const localDateTimeValue = (value) => {
@@ -328,9 +330,12 @@ function render() {
   const list = document.getElementById('list'); list.textContent = '';
   reviewFilterEl.setAttribute('aria-pressed', String(highlightsOnly));
   reviewFilterEl.textContent = highlightsOnly ? '★ Showing review only' : '☆ Review only';
+  bookedFilterEl.setAttribute('aria-pressed', String(bookedOnly));
+  bookedFilterEl.textContent = bookedOnly ? '✓ Showing booked only' : '✓ Booked only';
   const visibleCalls = calls.filter((entry) =>
     dayOf(new Date(entry.time)) === dateEl.value
     && (!highlightsOnly || entry.highlight)
+    && (!bookedOnly || (entry.done !== false && !hasNegativeOutcome(entry)))
     && entry.id !== activeId
   ).reverse();
   for (const call of visibleCalls) {
@@ -366,10 +371,10 @@ function render() {
     const s = document.createElement('div'); s.className = 'summary'; s.textContent = describe(call);
     card.append(top, s); list.append(card);
   }
-  if (highlightsOnly && visibleCalls.length === 0) {
+  if ((highlightsOnly || bookedOnly) && visibleCalls.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'rate';
-    empty.textContent = 'No calls highlighted for review on this date.';
+    empty.textContent = 'No calls match the selected filters on this date.';
     list.append(empty);
   }
 }
@@ -429,5 +434,6 @@ document.addEventListener('keydown', (event) => {
 });
 dateEl.onchange = render;
 reviewFilterEl.onclick = () => { highlightsOnly = !highlightsOnly; render(); };
+bookedFilterEl.onclick = () => { bookedOnly = !bookedOnly; render(); };
 render();
 if (startupCleanup) save();

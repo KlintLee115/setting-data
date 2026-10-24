@@ -13,6 +13,8 @@
   .section-heading{display:flex;justify-content:space-between;align-items:center;gap:8px}
   .section-heading button{font-size:13px;padding:6px 10px}
   .section-heading button[aria-pressed="true"]{background:#92400e;color:#fff}
+  .section-heading #booked-filter[aria-pressed="true"]{background:#16a34a}
+  .filters{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
   input[type=date],input[type=text],input[type=datetime-local]{padding:8px;border-radius:6px;border:0}
   button{border:0;border-radius:8px;background:#374151;color:#fff;cursor:pointer;font-size:15px;padding:10px 14px}
   .outreach-actions{display:flex;flex-wrap:wrap;gap:8px}
@@ -51,7 +53,7 @@
     <button data-outcome="booked" title="Log a booked call">Booked</button>
   </div>
   <div id="active"></div>
-  <div class="section-heading"><h2>Outreach</h2><button id="review-filter" type="button" aria-pressed="false">☆ Review only</button></div>
+  <div class="section-heading"><h2>Outreach</h2><span class="filters"><button id="booked-filter" type="button" aria-pressed="false">✓ Booked only</button><button id="review-filter" type="button" aria-pressed="false">☆ Review only</button></span></div>
   <div id="list"></div>
   <h2>Today's totals</h2>
   <div class="sum" id="sum"></div>
