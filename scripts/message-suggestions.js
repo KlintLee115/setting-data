@@ -159,6 +159,12 @@
     const origin = event.composedPath()[0];
     if (origin === trackerFrame) return;
     if (origin instanceof HTMLElement && (origin.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(origin.tagName))) return;
+    // P/B open the tracker so the "Why?" box is visible and can take focus.
+    if (key === 'p' || key === 'b') {
+      minimized = false;
+      activeView = 'tracker';
+      render();
+    }
     trackerFrame.contentWindow?.postMessage({ type: 'setting-tracker:key', key }, '*');
   }, true);
   panel.append(titlebar, nav, messageView, trackerFrame);

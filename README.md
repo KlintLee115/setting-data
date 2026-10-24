@@ -36,7 +36,7 @@ The open GHL contact's name and page link are added to the call automatically.
 | **B** | Log **Didn't book**. |
 | **H** | Highlight or unhighlight the most recent call for review. |
 
-On GHL, these shortcuts work across the page, even when the tracker panel is minimized or on the **Messages** tab. They are ignored while you type in a field, such as the message composer. On the standalone tracker page, they work when you are not typing in a field.
+On GHL, these shortcuts work across the page, even when the tracker panel is minimized or on the **Messages** tab. **P** and **B** also open the tracker panel so you can type the reason right away. They are ignored while you type in a field, such as the message composer. On the standalone tracker page, they work when you are not typing in a field.
 
 ## Review your calls
 
