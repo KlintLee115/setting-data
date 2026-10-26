@@ -50,6 +50,7 @@ let calls = retainCallEntries(storedCalls);
 let savedState = { calls: clone(calls), metrics: clone(metrics) };
 let activeId = null;
 let whyId = null;
+let whyDraft = '';
 let metricsOpen = false;
 let highlightsOnly = false;
 let bookedOnly = false;
@@ -124,10 +125,10 @@ function applyStoredState(latest) {
   calls = merged.calls;
   metrics = merged.metrics;
 }
-const save = () => {
+const save = (shouldRender = true) => {
   const base = clone(savedState);
   const edited = { calls: clone(calls), metrics: clone(metrics) };
-  render();
+  if (shouldRender) render();
   if (!navigator.locks) {
     console.error('This browser does not support shared tracker saves.');
     window.alert('Unable to safely save tracker data across windows. Please update Chrome and try again.');
@@ -145,9 +146,17 @@ const save = () => {
     localStorage.setItem(KEY_CALLS, JSON.stringify(next.calls));
     localStorage.setItem(KEY_METRICS, JSON.stringify(next.metrics));
     savedState = clone(next);
-    calls = next.calls;
+    calls = next.calls.map((nextCall) => {
+      const current = calls.find((call) => call.id === nextCall.id);
+      if (!current) return clone(nextCall);
+      for (const key of Object.keys(current)) {
+        if (!Object.prototype.hasOwnProperty.call(nextCall, key)) delete current[key];
+      }
+      Object.assign(current, clone(nextCall));
+      return current;
+    });
     metrics = next.metrics;
-    render();
+    if (shouldRender) render();
   }).catch((error) => {
     console.error('Unable to save tracker data.', error);
     window.alert('Unable to save tracker data. Your changes are still on this page; please try again.');
@@ -245,7 +254,16 @@ function render() {
     done.onclick = finishActive;
     top.append(name, done);
     card.append(top);
-    card.append(entryTime, tagButtons(active));
+    const comment = document.createElement('textarea');
+    comment.placeholder = 'Optional comment';
+    comment.setAttribute('aria-label', 'Optional comment');
+    comment.value = active.why || '';
+    comment.onchange = () => {
+      active.why = comment.value.trim();
+      if (!active.why) delete active.why;
+      save(false);
+    };
+    card.append(entryTime, comment, tagButtons(active));
     const metricManager = document.createElement('details');
     metricManager.className = 'metrics';
     metricManager.open = metricsOpen;
@@ -290,13 +308,15 @@ function render() {
     const why = document.createElement('input'); why.type = 'text';
     why.placeholder = `Why ${whyCall.didntPitch ? "didn't pitch" : "didn't book"}? (Enter to save, Esc to skip)`;
     why.setAttribute('aria-label', 'Reason');
-    why.value = whyCall.why || '';
-    const dismiss = () => { whyId = null; render(); };
+    why.value = whyDraft;
+    why.oninput = () => { whyDraft = why.value; };
+    const dismiss = () => { whyId = null; whyDraft = ''; render(); };
     why.onkeydown = (event) => {
       if (event.key === 'Enter') {
         whyCall.why = why.value.trim();
         if (!whyCall.why) delete whyCall.why;
         whyId = null;
+        whyDraft = '';
         save();
       } else if (event.key === 'Escape') dismiss();
     };
@@ -304,9 +324,16 @@ function render() {
     row.append(why, skip);
     card.append(row);
     box.append(card);
-    // Ask the GHL page to focus this iframe first so typing goes to the box.
-    parent.postMessage({ type: 'setting-tracker:focus' }, '*');
-    setTimeout(() => why.focus());
+    // The widget may have just been revealed, so retry until the box is visible and focused.
+    window.scrollTo(0, 0);
+    let attempts = 0;
+    const focusWhy = () => {
+      if (!why.isConnected) return;
+      parent.postMessage({ type: 'setting-tracker:focus' }, '*');
+      why.focus({ preventScroll: true });
+      if (document.activeElement !== why && attempts++ < 20) setTimeout(focusWhy, 50);
+    };
+    focusWhy();
   }
   const callDay = (counts.call || {})[dateEl.value] || {};
   const day = {
@@ -402,6 +429,7 @@ function recordOutcome(outcome) {
   if (BASE_STAGES.includes(outcome)) entry[field(outcome)] = true;
   calls.push(entry);
   whyId = outcome === 'didnt pitch' || outcome === 'didnt book' ? entry.id : null;
+  whyDraft = '';
   save();
 }
 function toggleHighlight(call) {

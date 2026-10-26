@@ -46,7 +46,7 @@ On GHL, these shortcuts work across the page, even when the tracker panel is min
 - Use **✓ Booked only** to show booked calls. You can combine it with **Review only** to find highlighted bookings.
 - The pickup rate is shown below the totals.
 
-Choose **edit** on a call to change its details or manage custom call metrics. Choose **delete** to remove it.
+Choose **edit** on a call to change its details, update or clear its optional comment, or manage custom call metrics. Choose **delete** to remove it.
 
 ## Automatically follow contacts
 
