@@ -151,16 +151,16 @@
   window.addEventListener('message', (event) => {
     if (event.source === trackerFrame.contentWindow && event.data?.type === 'setting-tracker:focus') trackerFrame.focus();
   });
-  // N/P/B work anywhere on the GHL page except while typing; they are forwarded to the tracker.
+  // N/I/L/B work anywhere on the GHL page except while typing; they are forwarded to the tracker.
   window.addEventListener('keydown', (event) => {
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat) return;
     const key = event.key.toLowerCase();
-    if (!['n', 'p', 'b', 'h'].includes(key)) return;
+    if (!['n', 'i', 'l', 'b', 'h'].includes(key)) return;
     const origin = event.composedPath()[0];
     if (origin === trackerFrame) return;
     if (origin instanceof HTMLElement && (origin.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(origin.tagName))) return;
-    // P/B open the tracker so the "Why?" box is visible and can take focus.
-    if (key === 'p' || key === 'b') {
+    // I/L/B open the tracker so the "Why?" box is visible and can take focus.
+    if (['i', 'l', 'b'].includes(key)) {
       minimized = false;
       activeView = 'tracker';
       render();

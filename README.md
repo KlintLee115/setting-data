@@ -1,6 +1,6 @@
 # GHL Setting Tracker
 
-A lightweight Chrome extension for logging cold-call outcomes while you work in GoHighLevel (GHL). It also includes quick message suggestions and can automatically add you as a follower on each contact.
+A lightweight Chrome extension for logging cold-call outcomes while you work in GoHighLevel (GHL). It also includes quick message suggestions and can automatically add you as a follower on contacts you message.
 
 ## Get started
 
@@ -19,11 +19,12 @@ Choose one outcome as soon as the call ends. Each choice records one completed c
 | Button | Use when |
 | --- | --- |
 | **No answer** | The lead did not pick up. |
-| **Didn't pitch** | The lead picked up, but you didn't pitch. |
+| **Didn't complete intent** | The lead picked up, but you didn't complete intent. |
+| **Didn't complete logical certainty** | You completed intent, but didn't complete logical certainty. |
 | **Didn't book** | You pitched, but did not book an appointment. |
 | **Booked** | The call resulted in a booking. |
 
-For **Didn't pitch** and **Didn't book**, a **Why?** box appears. Type a note and press **Enter** to save it, or press **Esc** / choose **Skip** to leave it blank.
+For **Didn't complete intent**, **Didn't complete logical certainty**, and **Didn't book**, a **Why?** box appears. Type a note and press **Enter** to save it, or press **Esc** / choose **Skip** to leave it blank.
 
 The open GHL contact's name and page link are added to the call automatically.
 
@@ -32,7 +33,8 @@ The open GHL contact's name and page link are added to the call automatically.
 | Key | Action |
 | --- | --- |
 | **N** | Log **No answer**. |
-| **P** | Log **Didn't pitch**. |
+| **I** | Log **Didn't complete intent**. |
+| **L** | Log **Didn't complete logical certainty**. |
 | **B** | Log **Didn't book**. |
 | **H** | Highlight or unhighlight the most recent call for review. |
 
@@ -50,7 +52,7 @@ Choose **edit** on a call to change its details, update or clear its optional co
 
 ## Automatically follow contacts
 
-When you open a GHL contact, the extension attempts to add **Klint Lee** as a follower if he is not already assigned. It does not remove existing followers. To use a different name, change `FOLLOWER_NAME` in [scripts/auto-follow.js](scripts/auto-follow.js).
+When you click the send (paper-plane) button on a GHL contact, the extension attempts to add **Klint Lee** as a follower if they are not already assigned. It does not remove existing followers. To use a different name, change `FOLLOWER_NAME` in [scripts/auto-follow.js](scripts/auto-follow.js).
 
 ## Message suggestions
 
@@ -60,6 +62,6 @@ Open the **Messages** tab to use the built-in suggestions: Follow-up, Standard, 
 
 Call data is stored in the extension's tracker page and synchronized across open tracker windows. Message suggestions are stored in the extension's storage.
 
-The tracker now keeps call records only. If you are upgrading from an older version, old DM/email records and their custom metrics are removed. Legacy call outcomes are converted to the current outcomes: booked calls stay booked, pitched calls become **Didn't book**, and picked-up / didn't-proceed calls become **Didn't pitch**.
+The tracker now keeps call records only. If you are upgrading from an older version, old DM/email records and their custom metrics are removed. Legacy call outcomes are converted to the current outcomes: booked calls stay booked, pitched calls become **Didn't book**, and picked-up / didn't-proceed calls and old **Didn't pitch** calls become **Didn't complete intent**.
 
 To use the tracker without opening GHL, open [tracker/index.html](tracker/index.html) in Chrome.

@@ -1,14 +1,17 @@
 const KEY_CALLS = 'tracker.calls';
 const KEY_METRICS = 'tracker.metrics';
 // Outcomes are mutually exclusive; a finished call with none of them selected counts as booked.
-const BASE_STAGES = ['no answer', 'didnt pitch', 'didnt book'];
+const BASE_STAGES = ['no answer', 'didnt complete intent', 'didnt complete logical certainty', 'didnt book'];
 const FIELD = {
   'no answer': 'noAnswer',
-  'didnt pitch': 'didntPitch',
+  'didnt complete intent': 'didntIntent',
+  'didnt complete logical certainty': 'didntLogicalCertainty',
   'didnt book': 'didntBook'
 };
-const SHORTCUT_STAGE = { n: 'no answer', p: 'didnt pitch', b: 'didnt book' };
-const LEGACY_KEYS = ['pickup', 'pitched', 'booked', 'didntProceed', 'somethingBeforeCall', 'somethingBeforeCallContext', 'reasons', 'note', 'disqualified', 'reason'];
+const SHORTCUT_STAGE = { n: 'no answer', i: 'didnt complete intent', l: 'didnt complete logical certainty', b: 'didnt book' };
+// Stages that prompt for a "why" after logging.
+const WHY_STAGES = ['didnt complete intent', 'didnt complete logical certainty', 'didnt book'];
+const LEGACY_KEYS = ['pickup', 'pitched', 'booked', 'didntProceed', 'somethingBeforeCall', 'somethingBeforeCallContext', 'reasons', 'note', 'disqualified', 'reason', 'didntPitch'];
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const CHANNELS = ['call'];
@@ -19,13 +22,14 @@ const chOf = (entry) => entry.channel || 'call';
 const metricPrefix = (channel) => (channel === 'call' ? '' : `${channel}:`);
 const isReservedMetricName = (name) => name.startsWith('dm:') || name.startsWith('email:');
 const isLegacyCall = (call) => LEGACY_KEYS.some((key) => key in call);
-// Converts the old pickup/pitched/booked fields into the new funnel outcomes.
+// Converts the old pickup/pitched/booked/didntPitch fields into the new funnel outcomes.
 function normalizeCall(call) {
   if (!isLegacyCall(call)) return call;
   if (call.disqualified) call.didntProceed = true;
-  if (!call.noAnswer && !call.didntPitch && !call.didntBook && !call.booked) {
+  if (call.didntPitch) call.didntIntent = true;
+  if (!call.noAnswer && !call.didntIntent && !call.didntLogicalCertainty && !call.didntBook && !call.booked) {
     if (call.pitched) call.didntBook = true;
-    else if (call.pickup || call.didntProceed) call.didntPitch = true;
+    else if (call.pickup || call.didntProceed) call.didntIntent = true;
   }
   for (const key of LEGACY_KEYS) delete call[key];
   return call;
@@ -306,7 +310,8 @@ function render() {
     const card = document.createElement('div'); card.className = 'card active';
     const row = document.createElement('div'); row.className = 'top';
     const why = document.createElement('input'); why.type = 'text';
-    why.placeholder = `Why ${whyCall.didntPitch ? "didn't pitch" : "didn't book"}? (Enter to save, Esc to skip)`;
+    const whyStage = WHY_STAGES.find((s) => whyCall[field(s)]) || 'didnt book';
+    why.placeholder = `Why ${whyStage.replace('didnt', "didn't")}? (Enter to save, Esc to skip)`;
     why.setAttribute('aria-label', 'Reason');
     why.value = whyDraft;
     why.oninput = () => { whyDraft = why.value; };
@@ -340,7 +345,8 @@ function render() {
     'outbound dials': callDay[ACTIVITY.call] || 0,
     'Call picked up': callDay['picked up'] || 0,
     'Call no answer': callDay['no answer'] || 0,
-    'Call didnt pitch': callDay['didnt pitch'] || 0,
+    'Call didnt complete intent': callDay['didnt complete intent'] || 0,
+    'Call didnt complete logical certainty': callDay['didnt complete logical certainty'] || 0,
     'Call didnt book': callDay['didnt book'] || 0,
     'Call booked': callDay.booked || 0
   };
@@ -428,7 +434,7 @@ function recordOutcome(outcome) {
   };
   if (BASE_STAGES.includes(outcome)) entry[field(outcome)] = true;
   calls.push(entry);
-  whyId = outcome === 'didnt pitch' || outcome === 'didnt book' ? entry.id : null;
+  whyId = WHY_STAGES.includes(outcome) ? entry.id : null;
   whyDraft = '';
   save();
 }

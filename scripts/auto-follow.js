@@ -72,38 +72,36 @@
     }
   }
 
+  // The paper-plane "send" icon; following only happens after a message is sent.
+  const SEND_ICON_PATH = 'path[d^="M10.5 13.5L21 3"]';
+  const isSendClick = (target) => {
+    if (!(target instanceof Element)) return false;
+    if (target.matches(SEND_ICON_PATH) || target.closest('svg')?.querySelector(SEND_ICON_PATH)) return true;
+    return !!target.closest('button, [role="button"]')?.querySelector(SEND_ICON_PATH);
+  };
+
   let handledKey = '';
-  let attempts = 0;
   let running = false;
-  let queued = false;
 
   async function run() {
     const key = contactKey();
-    if (running || key === handledKey || !document.querySelector(TRIGGER_SELECTOR)) return;
-    if (key !== lastKey) { lastKey = key; attempts = 0; }
-    if (attempts >= MAX_ATTEMPTS) return;
+    if (running || key === handledKey) return;
     running = true;
-    attempts += 1;
     try {
-      // Give the page a moment to finish loading this contact before opening the list.
-      await sleep(800);
-      if (contactKey() !== key) return;
-      if (await ensureFollower()) handledKey = key;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+        // Give the page a moment to finish sending before opening the list.
+        await sleep(800);
+        if (contactKey() !== key) return;
+        if (await ensureFollower()) { handledKey = key; return; }
+      }
     } catch (error) {
       console.warn('Auto-follow failed.', error);
     } finally {
       running = false;
-      if (contactKey() !== key || (handledKey !== key && attempts < MAX_ATTEMPTS)) queue();
     }
   }
-  let lastKey = '';
 
-  function queue() {
-    if (queued) return;
-    queued = true;
-    setTimeout(() => { queued = false; run(); }, 500);
-  }
-
-  new MutationObserver(queue).observe(document.body, { childList: true, subtree: true });
-  queue();
+  document.addEventListener('click', (event) => {
+    if (isSendClick(event.target)) run();
+  }, true);
 })();
