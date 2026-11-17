@@ -79,6 +79,12 @@
     && !/^(conversation|messages|inbox|contacts?)$/i.test(value);
 
   function getLeadName() {
+    if (!ON_GHL) {
+      // Aloware shows the contact's name in a dedicated element; don't fall back to page headings there.
+      const element = [...document.querySelectorAll('.alw-contact-name')].find((el) => el.getClientRects().length)
+        || document.querySelector('.alw-contact-name');
+      return element ? normalizeName(element.textContent || '') : '';
+    }
     for (const selector of HEADER_SELECTORS) {
       const element = document.querySelector(selector);
       const name = element ? normalizeName(element.textContent || '') : '';
@@ -141,12 +147,40 @@
     const data = new DataTransfer();
     data.setData('text/html', toEmailHtml(text));
     data.setData('text/plain', text);
+    const paste = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
     pastingOurs = true;
     try {
-      editor.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+      editor.dispatchEvent(paste);
     } finally {
       pastingOurs = false;
     }
+    return paste.defaultPrevented;
+  }
+
+  // Remembers the last text box the user clicked into on the page (outside this panel), so messages can
+  // be filled into composers this script has no selector for, such as Aloware's.
+  let lastEditable = null;
+  const isEditable = (el) => el instanceof HTMLElement && (el.isContentEditable
+    || el.tagName === 'TEXTAREA'
+    || (el.tagName === 'INPUT' && ['text', 'search', ''].includes((el.getAttribute('type') || '').toLowerCase())));
+  document.addEventListener('focusin', (event) => {
+    const path = event.composedPath();
+    const target = path[0];
+    if (!isEditable(target) || target.id === 'subject-input' || target.dataset.testid === 'email-subject-input' || path.includes(host)) return;
+    lastEditable = target.isContentEditable ? (target.closest('[contenteditable="true"]') || target) : target;
+  }, true);
+
+  // Replaces a generic contenteditable's text, preferring the editor's own paste handling.
+  function fillContentEditable(editor, message) {
+    editor.focus();
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    setTimeout(() => {
+      if (!pasteIntoEditor(editor, message)) document.execCommand('insertText', false, message);
+    }, 0);
   }
 
   // Replaces the email editor's content with `message`.
@@ -180,10 +214,26 @@
       fillEmailBody(emailEditor, message);
       return true;
     }
-    const composer = document.querySelector('#conv-composer-textarea-input')
-      || document.querySelector('input[placeholder="Type a message"]')
-      || document.querySelector('textarea[placeholder="Type a message"]');
+    // Aloware: plain textareas for email (with a separate subject input) and SMS.
+    const alowareEmail = [...document.querySelectorAll('[data-testid="email-message-body-input"]')].find(isVisible);
+    if (alowareEmail) {
+      const alowareSubject = [...document.querySelectorAll('[data-testid="email-subject-input"]')].find(isVisible);
+      if (subject && alowareSubject) setInputValue(alowareSubject, subject);
+      setInputValue(alowareEmail, message);
+      alowareEmail.focus();
+      return true;
+    }
+    const known = ['[data-testid="sms-message-body-input"]', '#conv-composer-textarea-input', 'input[placeholder="Type a message"]', 'textarea[placeholder="Type a message"]']
+      .flatMap((selector) => [...document.querySelectorAll(selector)]);
+    const composer = known.find(isVisible)
+      || (lastEditable?.isConnected && isVisible(lastEditable) ? lastEditable : null)
+      || [...document.querySelectorAll('textarea')].find((el) => isVisible(el) && /message|type|text|reply|sms/i.test(el.placeholder || ''))
+      || known[0];
     if (!composer) return false;
+    if (composer.isContentEditable) {
+      fillContentEditable(composer, message);
+      return true;
+    }
     setInputValue(composer, message);
     composer.focus();
     return true;
@@ -330,13 +380,15 @@
   makeDraggable(restore, restore);
 
   function sendLeadName(force = false) {
-    // GHL shows the lead's name; Aloware identifies the contact by phone number, so that is used instead.
-    const name = ON_GHL ? getLeadName() : getAlowarePhone();
-    const url = window.location.href;
-    if (!force && name === lastLeadName && url === lastLeadUrl && trackerFrame.contentWindow) return;
+    // GHL calls keep a link back to the contact; Aloware calls keep the contact's phone number instead.
+    const name = getLeadName();
+    const url = ON_GHL ? window.location.href : '';
+    const phone = ON_GHL ? '' : getAlowarePhone();
+    const key = `${url}|${phone}`;
+    if (!force && name === lastLeadName && key === lastLeadUrl && trackerFrame.contentWindow) return;
     lastLeadName = name;
-    lastLeadUrl = url;
-    trackerFrame.contentWindow?.postMessage({ type: 'setting-tracker:lead', name, url }, '*');
+    lastLeadUrl = key;
+    trackerFrame.contentWindow?.postMessage({ type: 'setting-tracker:lead', name, url, phone }, '*');
   }
 
   function render() {
@@ -366,7 +418,7 @@
       use.type = 'button';
       use.title = (m.subject ? `Subject: ${buildMessage(m.subject)}\n\n` : '') + buildMessage(m.text);
       use.onclick = () => {
-        status = fillComposer(buildMessage(m.text), m.subject ? buildMessage(m.subject) : '') ? '' : 'Open a conversation first.';
+        status = fillComposer(buildMessage(m.text), m.subject ? buildMessage(m.subject) : '') ? '' : 'Click into the message box first, then pick a message.';
         render();
       };
       const edit = make('button', BTN + 'flex:0 0 auto;padding:6px 8px;', '✎');

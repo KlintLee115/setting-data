@@ -46,7 +46,7 @@ On GHL, these shortcuts work across the page, even when the tracker panel is min
 
 ### Using Aloware
 
-The tracker panel and its shortcuts also appear on Aloware pages (`*.aloware.io`, `*.aloware.com`), so you can log calls while dialing there. On Aloware, the contact's phone number is logged in place of the lead name. GHL links and the arrow-key contact navigation only work on GHL.
+The tracker panel and its shortcuts also appear on Aloware pages (`*.aloware.io`, `*.aloware.com`), so you can log calls while dialing there. On Aloware, the contact's name is logged and the call shows their phone number where GHL calls show a **GHL** link. GHL links and the arrow-key contact navigation only work on GHL.
 
 ## Review your calls
 

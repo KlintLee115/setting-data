@@ -63,6 +63,7 @@ let highlightsOnly = false;
 let bookedOnly = false;
 let currentGhlLead = '';
 let currentGhlUrl = '';
+let currentLeadPhone = ''; // Aloware contacts are saved with their phone number instead of a GHL link.
 let autoLead = '';
 let counts = {};
 const dateEl = document.getElementById('date');
@@ -189,14 +190,17 @@ window.addEventListener('message', (event) => {
   if (event.data?.type !== 'setting-tracker:lead') return;
   const lead = typeof event.data.name === 'string' ? event.data.name.trim() : '';
   const url = typeof event.data.url === 'string' ? event.data.url : '';
-  if (lead === currentGhlLead && url === currentGhlUrl) return;
+  const phone = typeof event.data.phone === 'string' ? event.data.phone.trim() : '';
+  if (lead === currentGhlLead && url === currentGhlUrl && phone === currentLeadPhone) return;
   const previousAutoLead = autoLead;
   currentGhlLead = lead;
   currentGhlUrl = url;
+  currentLeadPhone = phone;
   const active = calls.find((call) => call.id === activeId);
   if (active && lead && (!active.lead || (previousAutoLead && active.lead === previousAutoLead))) {
     active.lead = lead;
     active.leadUrl = url;
+    active.leadPhone = phone;
     autoLead = lead;
     save();
     return;
@@ -434,6 +438,10 @@ function render() {
         console.warn('Ignoring invalid saved GoHighLevel lead URL.', error);
       }
     }
+    if (call.leadPhone) {
+      const phone = document.createElement('span'); phone.className = 'meta'; phone.style.flexShrink = '0'; phone.textContent = call.leadPhone;
+      top.append(phone);
+    }
     const star = document.createElement('button'); star.className = 'x'; star.textContent = call.highlight ? '★ review' : '☆ review';
     star.onclick = () => toggleHighlight(call);
     const edit = document.createElement('button'); edit.className = 'x'; edit.textContent = 'edit'; edit.onclick = () => { activeId = call.id; save(); };
@@ -502,6 +510,7 @@ function recordOutcome(outcome) {
     time: new Date().toISOString(),
     lead: currentGhlLead,
     leadUrl: currentGhlUrl,
+    leadPhone: currentLeadPhone,
     done: true
   };
   if (BASE_STAGES.includes(outcome)) entry[field(outcome)] = true;
