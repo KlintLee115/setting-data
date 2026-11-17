@@ -1,16 +1,18 @@
 const KEY_CALLS = 'tracker.calls';
 const KEY_METRICS = 'tracker.metrics';
 // Outcomes are mutually exclusive; a finished call with none of them selected counts as booked.
-const BASE_STAGES = ['no answer', 'didnt complete intent', 'didnt complete logical certainty', 'didnt book'];
+const BASE_STAGES = ['no answer', 'didnt complete intent', 'didnt complete logical certainty', 'didnt pitch', 'didnt book'];
+// `didntPitch` is a legacy key that migrates to didntIntent, so this outcome is stored as `notPitched`.
 const FIELD = {
   'no answer': 'noAnswer',
   'didnt complete intent': 'didntIntent',
   'didnt complete logical certainty': 'didntLogicalCertainty',
+  'didnt pitch': 'notPitched',
   'didnt book': 'didntBook'
 };
-const SHORTCUT_STAGE = { n: 'no answer', i: 'didnt complete intent', l: 'didnt complete logical certainty', b: 'didnt book' };
+const SHORTCUT_STAGE = { n: 'no answer', i: 'didnt complete intent', l: 'didnt complete logical certainty', p: 'didnt pitch', b: 'didnt book' };
 // Stages that prompt for a "why" after logging.
-const WHY_STAGES = ['didnt complete intent', 'didnt complete logical certainty', 'didnt book'];
+const WHY_STAGES = ['didnt complete intent', 'didnt complete logical certainty', 'didnt pitch', 'didnt book'];
 const LEGACY_KEYS = ['pickup', 'pitched', 'booked', 'didntProceed', 'somethingBeforeCall', 'somethingBeforeCallContext', 'reasons', 'note', 'disqualified', 'reason', 'didntPitch'];
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -49,6 +51,7 @@ const field = (s, channel = 'call') => FIELD[s] || (BASE_STAGES.includes(s) ? s 
 const baseStagesFor = () => BASE_STAGES;
 const stagesFor = (entry) => [...baseStagesFor(chOf(entry)), ...metricsFor(chOf(entry))];
 const hasNegativeOutcome = (call) => BASE_STAGES.some((s) => call[field(s)]);
+const hasTalkTime = (call) => !call.noAnswer && typeof call.talkMs === 'number';
 const allButtons = (channel) => [ACTIVITY[channel], 'picked up', ...baseStagesFor(channel), 'booked', ...metricsFor(channel)];
 let calls = retainCallEntries(storedCalls);
 let savedState = { calls: clone(calls), metrics: clone(metrics) };
@@ -223,7 +226,8 @@ function describe(call) {
   const tags = stagesFor(call).filter((s) => call[field(s, chOf(call))]);
   if (call.done === false) return 'in progress (not counted until Done)' + (tags.length ? ': ' + tags.join(' › ') : '');
   if (!hasNegativeOutcome(call)) tags.unshift('booked');
-  return tags.join(' › ') + (call.why ? ` — ${call.why}` : '');
+  const talk = hasTalkTime(call) ? ` · ${formatDuration(call.talkMs)}` : '';
+  return tags.join(' › ') + talk + (call.why ? ` — ${call.why}` : '');
 }
 
 function render() {
@@ -267,7 +271,29 @@ function render() {
       if (!active.why) delete active.why;
       save(false);
     };
-    card.append(entryTime, comment, tagButtons(active));
+    card.append(entryTime);
+    if (!active.noAnswer) {
+      const talkRow = document.createElement('div'); talkRow.className = 'top'; talkRow.style.marginTop = '8px';
+      const talkLabel = document.createElement('span'); talkLabel.className = 'meta'; talkLabel.textContent = 'Talk time';
+      const talkInput = document.createElement('input'); talkInput.type = 'text'; talkInput.placeholder = 'm:ss';
+      talkInput.setAttribute('aria-label', 'Talk time');
+      talkInput.value = hasTalkTime(active) ? formatDuration(active.talkMs) : '';
+      talkInput.onchange = () => {
+        const talkMs = parseDuration(talkInput.value.trim());
+        if (talkMs === null) {
+          talkInput.value = hasTalkTime(active) ? formatDuration(active.talkMs) : '';
+          return;
+        }
+        active.talkMs = talkMs;
+        talkInput.value = formatDuration(talkMs);
+        // Like the comment, skip the re-render so a click on Done right after typing still lands.
+        save(false);
+      };
+      talkInput.onkeydown = (event) => { if (event.key === 'Enter') talkInput.blur(); };
+      talkRow.append(talkLabel, talkInput);
+      card.append(talkRow);
+    }
+    card.append(comment, tagButtons(active));
     const metricManager = document.createElement('details');
     metricManager.className = 'metrics';
     metricManager.open = metricsOpen;
@@ -347,19 +373,32 @@ function render() {
     'Call no answer': callDay['no answer'] || 0,
     'Call didnt complete intent': callDay['didnt complete intent'] || 0,
     'Call didnt complete logical certainty': callDay['didnt complete logical certainty'] || 0,
+    'Call didnt pitch': callDay['didnt pitch'] || 0,
     'Call didnt book': callDay['didnt book'] || 0,
     'Call booked': callDay.booked || 0
   };
-  const sum = document.getElementById('sum'); sum.textContent = '';
-  for (const b of Object.keys(day)) {
-    const d = document.createElement('div');
-    const n = document.createElement('b'); n.textContent = day[b];
-    const l = document.createElement('span'); l.textContent = b;
-    d.append(n, l); sum.append(d);
-  }
+  renderTiles(document.getElementById('sum'), day);
   const dialCount = callDay[ACTIVITY.call] || 0;
   const pickedUp = callDay['picked up'] || 0;
   document.getElementById('rate').textContent = dialCount ? `Call pickup rate: ${Math.round((pickedUp / dialCount) * 100)}% (${pickedUp}/${dialCount})` : '';
+  const talkTimes = calls
+    .filter((call) => call.done !== false && hasTalkTime(call) && dayOf(new Date(call.time)) === dateEl.value)
+    .map((call) => call.talkMs)
+    .sort((a, b) => a - b);
+  document.getElementById('talk-section').hidden = !talkTimes.length;
+  if (talkTimes.length) {
+    const total = talkTimes.reduce((sum, ms) => sum + ms, 0);
+    renderTiles(document.getElementById('talk-sum'), {
+      'Total talk time': formatDuration(total),
+      'Timed calls': talkTimes.length,
+      Average: formatDuration(total / talkTimes.length),
+      Median: formatDuration(percentile(talkTimes, 50)),
+      '25th percentile': formatDuration(percentile(talkTimes, 25)),
+      '75th percentile': formatDuration(percentile(talkTimes, 75)),
+      '90th percentile': formatDuration(percentile(talkTimes, 90)),
+      Longest: formatDuration(talkTimes[talkTimes.length - 1])
+    });
+  }
   const list = document.getElementById('list'); list.textContent = '';
   reviewFilterEl.setAttribute('aria-pressed', String(highlightsOnly));
   reviewFilterEl.textContent = highlightsOnly ? '★ Showing review only' : '☆ Review only';
@@ -376,7 +415,8 @@ function render() {
     const top = document.createElement('div'); top.className = 'top';
     const time = new Date(call.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     const channel = CHANNEL_LABEL[chOf(call)];
-    const label = document.createElement('span'); label.className = 'meta'; label.textContent = `${call.highlight ? '★ ' : ''}${time} · ${channel}${call.lead ? ' · ' + call.lead : ''}`;
+    const label = document.createElement('span'); label.className = 'meta entry-label'; label.textContent = `${call.highlight ? '★ ' : ''}${time} · ${channel}`;
+    label.title = label.textContent;
     top.append(label);
     if (call.leadUrl) {
       try {
@@ -399,10 +439,12 @@ function render() {
     const edit = document.createElement('button'); edit.className = 'x'; edit.textContent = 'edit'; edit.onclick = () => { activeId = call.id; save(); };
     const del = document.createElement('button'); del.className = 'x'; del.textContent = 'delete';
     del.onclick = () => { if (confirm(`Delete this ${CHANNEL_LABEL[chOf(call)].toLowerCase()}?`)) { calls = calls.filter((c) => c !== call); save(); } };
-    const spacer = document.createElement('span'); spacer.style.flex = '1';
-    top.append(spacer, star, edit, del);
+    top.append(star, edit, del);
+    // The name gets its own line so the narrow GHL panel never truncates it.
+    const name = document.createElement('div'); name.className = call.lead ? 'entry-lead' : 'entry-lead missing';
+    name.textContent = call.lead || 'No name — click edit to add one';
     const s = document.createElement('div'); s.className = 'summary'; s.textContent = describe(call);
-    card.append(top, s); list.append(card);
+    card.append(top, name, s); list.append(card);
   }
   if ((highlightsOnly || bookedOnly) && visibleCalls.length === 0) {
     const empty = document.createElement('p');
@@ -411,6 +453,36 @@ function render() {
     list.append(empty);
   }
 }
+function renderTiles(container, tiles) {
+  container.textContent = '';
+  for (const b of Object.keys(tiles)) {
+    const d = document.createElement('div');
+    const n = document.createElement('b'); n.textContent = tiles[b];
+    const l = document.createElement('span'); l.textContent = b;
+    d.append(n, l); container.append(d);
+  }
+}
+
+const formatDuration = (ms) => {
+  const seconds = Math.floor(ms / 1000);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor(seconds / 60) % 60;
+  return `${hours ? `${hours}:${pad2(minutes)}` : minutes}:${pad2(seconds % 60)}`;
+};
+// Accepts m:ss or h:mm:ss; a bare number means minutes. Returns null for anything else.
+const parseDuration = (value) => {
+  if (!/^\d+(:[0-5]?\d){0,2}$/.test(value)) return null;
+  const parts = value.split(':').map(Number);
+  if (parts.length === 1) parts.push(0);
+  return parts.reduce((total, part) => total * 60 + part, 0) * 1000;
+};
+// Linear interpolation between ranks, so the 50th percentile is the true median.
+const percentile = (sorted, p) => {
+  const rank = (sorted.length - 1) * p / 100;
+  const low = Math.floor(rank);
+  const high = Math.ceil(rank);
+  return sorted[low] + (sorted[high] - sorted[low]) * (rank - low);
+};
 
 function finishActive() {
   const active = calls.find((c) => c.id === activeId);
@@ -454,6 +526,14 @@ function handleShortcut(key, fromButton = false) {
     const latest = calls[calls.length - 1];
     if (!latest) return false;
     toggleHighlight(latest);
+    return true;
+  }
+  if (key === 'f' && parent !== window) {
+    parent.postMessage({ type: 'setting-tracker:follow' }, '*');
+    return true;
+  }
+  if ((key === 'arrowleft' || key === 'arrowright') && parent !== window) {
+    parent.postMessage({ type: 'setting-tracker:navigate', key }, '*');
     return true;
   }
   if (key === 'enter' && !fromButton && calls.some((c) => c.id === activeId)) { finishActive(); return true; }

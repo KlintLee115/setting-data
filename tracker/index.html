@@ -32,6 +32,10 @@
   .top input{flex:1;min-width:0}
   .call-time{width:100%;box-sizing:border-box;margin-top:8px}
   .meta{color:#9ca3af;font-size:13px;white-space:nowrap}
+  .entry-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .entry-lead{font-size:15px;margin-top:6px;overflow-wrap:anywhere}
+  .entry-lead.missing{font-size:13px;color:#6b7280;font-style:italic}
+  .top .x,.top a.meta{flex-shrink:0}
   .sum{display:flex;flex-wrap:wrap;gap:8px}
   .sum div{background:#1f2937;border-radius:8px;padding:8px 12px;text-align:center;min-width:70px}
   .sum b{display:block;font-size:22px}
@@ -51,6 +55,7 @@
     <button data-outcome="no answer" title="Log a no-answer call (N)" aria-keyshortcuts="N">No answer (N)</button>
     <button data-outcome="didnt complete intent" title="Log a call that didn't complete intent (I)" aria-keyshortcuts="I">Didn't complete intent (I)</button>
     <button data-outcome="didnt complete logical certainty" title="Log a call that didn't complete logical certainty (L)" aria-keyshortcuts="L">Didn't complete logical certainty (L)</button>
+    <button data-outcome="didnt pitch" title="Log a call that didn't pitch (P)" aria-keyshortcuts="P">Didn't pitch (P)</button>
     <button data-outcome="didnt book" title="Log a pitched call that didn't book (B)" aria-keyshortcuts="B">Didn't book (B)</button>
     <button data-outcome="booked" title="Log a booked call">Booked</button>
   </div>
@@ -60,6 +65,10 @@
   <h2>Today's totals</h2>
   <div class="sum" id="sum"></div>
   <p class="rate" id="rate"></p>
+  <section id="talk-section" hidden>
+    <h2>Talk time</h2>
+    <div class="sum" id="talk-sum"></div>
+  </section>
 </main>
 <script src="tracker.js"></script>
 </body>

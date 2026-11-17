@@ -7,7 +7,52 @@
     { label: 'Follow-up', text: "Heyy {name}, Klint here from Alicia Lyttle's AI team 😊 \n\n did u get my msg?" },
     { label: 'Standard', text: "Heyy {name}, this is Klint with Alicia Lyttle's AI team 😊 \n\nI saw that you registered for the AI Marketing Summit to possibly make more money or have more freedom.\n\n We are just checking on all the vip members - how did the summit go for you?" },
     { label: 'Certification form', text: "Heyy {name}, this is Klint with Alicia Lyttle's AI team 😊 \n\nI saw that you filled out the form for the AI Consultancy Certification to possibly leverage AI more in your biz, or become an AI consultant.\n\n We are just checking on all the vip members - how did the summit go for you?" },
-    { label: 'Build It Launch It', text: "Heyy {name}, this is Klint with Alicia Lyttle's AI team 😊 \n\nI saw that you signed up for the Build It Launch It challenge.\n\n We are just checking on all the vip members - how did the summit go for you?" }
+    { label: 'Build It Launch It', text: "Heyy {name}, this is Klint with Alicia Lyttle's AI team 😊 \n\nI saw that you signed up for the Build It Launch It challenge.\n\n We are just checking on all the vip members - how did the summit go for you?" },
+    {
+      label: 'AICC prep',
+      subject: 'Your call is coming up in 3 days!',
+      text: [
+        "Hey hey, it's Team Alicia here with a friendly little nudge…",
+        '',
+        "You've got your call coming up in just 3 days, and I want to make sure you're feeling good and ready!",
+        "Here's a quick recap of your details:",
+        '',
+        '📅 Date: November 17, 2026',
+        '🕒 Time: 8:00 PM',
+        '📍 Meeting Type: https://us02web.zoom.us/j/87858185565?pwd=gbCcgVGxFMWB0RK0RFXCb8bnOBDN3y.1',
+        "👋 You'll be meeting with: AJ",
+        '',
+        'This call is your chance to talk with our team about how to turn your passion for AI into a profitable consulting business with our Certified AI Consultant Program.',
+        "We'll walk through:",
+        '',
+        '✅ How the certification works',
+        "✅ What's included in the program",
+        '✅ Real examples of how people are landing clients, speaking gigs, and building AI-powered offers',
+        '',
+        'Katrice Francis – Closed her first paid client and made back her investment plus profit before graduating.',
+        'Susan Gordon-Jackson – Mentioned her certification at a meeting → landed a paid legal client on the spot.',
+        'Lindsay (Summit Presenter) – Generated 80 leads from AI Insights Summit → closed a $6,000 package and teed up a $15K deal.',
+        '',
+        '...all from this same program.',
+        '',
+        "You've already taken the first step by booking the call. Now just make sure you show up, ask your questions, and bring your big ideas. Your next level might just start right here.",
+        'Also, Please go through these resources to prepare for the call about AI consulting with AJ on Wednesday at 6PM EST, as they may be beneficial for your situation :)',
+        '',
+        'Getting into AI Consulting',
+        'https://www.youtube.com/watch?v=6Tt2wjv8hio',
+        '',
+        'Where our students go',
+        'https://www.iaaic.org',
+        '',
+        'Preparation for the call',
+        'https://aiprepcall.com',
+        "Can't wait for you to connect with the team!",
+        '',
+        'Talk soon,',
+        '',
+        'Team Alicia'
+      ].join('\n')
+    }
   ];
   const HEADER_SELECTORS = [
     '[data-testid="CENTRALPANEL_NAME"]',
@@ -44,15 +89,93 @@
 
   const buildMessage = (text) => text.split('{name}').join(getLeadName().split(/\s+/)[0] || 'there');
 
-  function fillComposer(message) {
+  const isVisible = (el) => Boolean(el && el.getClientRects().length);
+
+  function setInputValue(input, value) {
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')?.set;
+    if (setter) setter.call(input, value); else input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // GHL's email composer: a subject input plus a ProseMirror rich-text body.
+  const EMAIL_EDITOR = '.ProseMirror[contenteditable="true"]';
+  function getEmailEditor() {
+    const editors = [...document.querySelectorAll(EMAIL_EDITOR)];
+    const fromParagraph = document.querySelector('p.custom-newline')?.closest('[contenteditable="true"]');
+    if (fromParagraph) editors.unshift(fromParagraph);
+    return editors.find(isVisible) || null;
+  }
+  // The email editor `node` is in, if any (GHL's editor may lack the .ProseMirror class).
+  function emailEditorOf(node) {
+    const el = node instanceof Element ? node : node?.parentElement;
+    const editor = el?.closest('[contenteditable="true"]');
+    return editor && (editor.matches(EMAIL_EDITOR) || editor.querySelector('p.custom-newline')) ? editor : null;
+  }
+
+  // GHL's editor turns a pasted paragraph that is only a YouTube link into a video embed. Starting such a
+  // paragraph with a non-breaking space means it is no longer "just the link", so it stays a plain URL.
+  const YOUTUBE_URL = /https?:\/\/(?:[\w-]+\.)?(?:youtube\.com|youtu\.be|youtube-nocookie\.com)\//i;
+  const escapeHtml = (value) => value.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const linkify = (line) => escapeHtml(line).replace(/https?:\/\/[^\s<]+/g, (url) => `<a href="${url}">${url}</a>`);
+  function toEmailHtml(text) {
+    return text.replace(/\r\n?/g, '\n').split('\n').map((line) => {
+      if (!line.trim()) return '<p><br></p>';
+      const prefix = YOUTUBE_URL.test(line) && /^\S+$/.test(line.trim()) ? '&nbsp;' : '';
+      return `<p>${prefix}${linkify(line.trim())}</p>`;
+    }).join('');
+  }
+
+  // Pastes text through the editor's own paste handling, which keeps its state in sync with what is shown.
+  let pastingOurs = false;
+  function pasteIntoEditor(editor, text) {
+    const data = new DataTransfer();
+    data.setData('text/html', toEmailHtml(text));
+    data.setData('text/plain', text);
+    pastingOurs = true;
+    try {
+      editor.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    } finally {
+      pastingOurs = false;
+    }
+  }
+
+  // Replaces the email editor's content with `message`.
+  function fillEmailBody(editor, message) {
+    editor.focus();
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    // Let the editor pick up the new selection before pasting over it.
+    setTimeout(() => pasteIntoEditor(editor, message), 0);
+  }
+
+  // When the user pastes text containing a YouTube link, re-paste it with the link protected from embedding.
+  window.addEventListener('paste', (event) => {
+    if (pastingOurs) return;
+    const editor = emailEditorOf(event.target);
+    const text = event.clipboardData?.getData('text/plain') || '';
+    if (!editor || !YOUTUBE_URL.test(text)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    pasteIntoEditor(editor, text);
+  }, true);
+
+  function fillComposer(message, subject) {
+    const emailEditor = getEmailEditor();
+    if (emailEditor) {
+      const subjectInput = document.querySelector('#subject-input');
+      if (subject && isVisible(subjectInput)) setInputValue(subjectInput, subject);
+      fillEmailBody(emailEditor, message);
+      return true;
+    }
     const composer = document.querySelector('#conv-composer-textarea-input')
       || document.querySelector('input[placeholder="Type a message"]')
       || document.querySelector('textarea[placeholder="Type a message"]');
     if (!composer) return false;
-    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(composer), 'value')?.set;
-    if (setter) setter.call(composer, message); else composer.value = message;
-    composer.dispatchEvent(new Event('input', { bubbles: true }));
-    composer.dispatchEvent(new Event('change', { bubbles: true }));
+    setInputValue(composer, message);
     composer.focus();
     return true;
   }
@@ -61,15 +184,33 @@
   const store = chrome.storage.local;
   const save = () => store.set({ messages });
 
+  // The UI lives in a shadow root so GHL's (and third-party widgets') page CSS, e.g. rules targeting
+  // `body > div > iframe`, cannot hide or collapse the tracker iframe.
+  const host = document.createElement('setting-tracker-root');
+  host.style.cssText = 'all:initial;';
+  const root = host.attachShadow({ mode: 'open' });
+  const ensureMounted = () => { if (!host.isConnected && document.body) document.body.appendChild(host); };
+  ensureMounted();
+
   const panel = document.createElement('div');
   panel.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483647;display:flex;flex-direction:column;gap:6px;width:220px;max-width:calc(100vw - 32px);padding:8px;box-sizing:border-box;background:#fff;border:1px solid #d5dbe5;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.18);font:12px Arial,sans-serif;color:#222;cursor:move;';
-  document.body.appendChild(panel);
+  root.appendChild(panel);
 
   const style = (el, css) => { el.style.cssText = css; return el; };
   const make = (tag, css, text) => { const el = style(document.createElement(tag), css); if (text) el.textContent = text; return el; };
   const BTN = 'padding:6px 10px;border:1px solid #245a95;border-radius:5px;background:#fff;color:#245a95;cursor:pointer;text-align:left;';
   const FIELD = 'width:100%;box-sizing:border-box;padding:4px;border:1px solid #c5ccd8;border-radius:4px;font:12px Arial,sans-serif;';
   const MAX_VISIBLE_MESSAGES = 6;
+  // Arrow keys press GHL's previous/next chevron icons, matched by their path since the buttons have no labels.
+  const CHEVRONS = { arrowleft: 'path[d="M15 18l-6-6 6-6"]', arrowright: 'path[d="M9 18l6-6-6-6"]' };
+  function clickChevron(key) {
+    const icon = [...document.querySelectorAll(CHEVRONS[key])]
+      .map((path) => path.closest('svg'))
+      .find((svg) => svg && svg.getClientRects().length);
+    if (!icon) return false;
+    icon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    return true;
+  }
   let adding = false, editingIndex = null, status = '';
   let activeView = 'tracker';
   let minimized = false;
@@ -134,7 +275,8 @@
       event.stopImmediatePropagation();
       suppressClick = false;
     }, true);
-  } document.body.appendChild(restore);
+  }
+  root.appendChild(restore);
   const nav = make('div', 'display:flex;gap:6px;');
   const messagesTab = make('button', BTN + 'flex:1;text-align:center;', 'Messages');
   const trackerTab = make('button', BTN + 'flex:1;text-align:center;', 'Tracker');
@@ -149,18 +291,24 @@
   trackerFrame.src = chrome.runtime.getURL('tracker/index.html');
   trackerFrame.addEventListener('load', () => sendLeadName(true));
   window.addEventListener('message', (event) => {
-    if (event.source === trackerFrame.contentWindow && event.data?.type === 'setting-tracker:focus') trackerFrame.focus();
+    if (event.source !== trackerFrame.contentWindow) return;
+    if (event.data?.type === 'setting-tracker:focus') trackerFrame.focus();
+    if (event.data?.type === 'setting-tracker:navigate' && CHEVRONS[event.data.key]) clickChevron(event.data.key);
   });
-  // N/I/L/B work anywhere on the GHL page except while typing; they are forwarded to the tracker.
+  // N/I/L/P/B/H work anywhere on the GHL page except while typing; they are forwarded to the tracker.
   window.addEventListener('keydown', (event) => {
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat) return;
     const key = event.key.toLowerCase();
-    if (!['n', 'i', 'l', 'b', 'h'].includes(key)) return;
+    if (!['n', 'i', 'l', 'p', 'b', 'h', 'arrowleft', 'arrowright'].includes(key)) return;
     const origin = event.composedPath()[0];
     if (origin === trackerFrame) return;
     if (origin instanceof HTMLElement && (origin.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(origin.tagName))) return;
-    // I/L/B open the tracker so the "Why?" box is visible and can take focus.
-    if (['i', 'l', 'b'].includes(key)) {
+    if (CHEVRONS[key]) {
+      if (clickChevron(key)) event.preventDefault();
+      return;
+    }
+    // I/L/P/B open the tracker so the "Why?" box is visible and can take focus.
+    if (['i', 'l', 'p', 'b'].includes(key)) {
       minimized = false;
       activeView = 'tracker';
       render();
@@ -196,8 +344,8 @@
     messageList.textContent = '';
     messages.forEach((m, i) => {
       if (editingIndex === i) {
-        messageList.appendChild(buildEditForm(m, (label, text) => {
-          messages = messages.map((msg, idx) => (idx === i ? { label, text } : msg));
+        messageList.appendChild(buildEditForm(m, (label, text, subject) => {
+          messages = messages.map((msg, idx) => (idx === i ? { ...msg, label, text, subject } : msg));
           editingIndex = null; save(); render();
         }, () => { editingIndex = null; render(); }));
         return;
@@ -205,9 +353,9 @@
       const row = make('div', 'display:flex;gap:4px;align-items:stretch;');
       const use = make('button', BTN + 'flex:1;', m.label);
       use.type = 'button';
-      use.title = buildMessage(m.text);
+      use.title = (m.subject ? `Subject: ${buildMessage(m.subject)}\n\n` : '') + buildMessage(m.text);
       use.onclick = () => {
-        status = fillComposer(buildMessage(m.text)) ? '' : 'Open a conversation first.';
+        status = fillComposer(buildMessage(m.text), m.subject ? buildMessage(m.subject) : '') ? '' : 'Open a conversation first.';
         render();
       };
       const edit = make('button', BTN + 'flex:0 0 auto;padding:6px 8px;', '✎');
@@ -241,8 +389,8 @@
       messageView.appendChild(add);
       return;
     }
-    messageView.appendChild(buildEditForm(null, (label, text) => {
-      messages = [...messages, { label, text }];
+    messageView.appendChild(buildEditForm(null, (label, text, subject) => {
+      messages = [...messages, { label, text, subject }];
       adding = false; save(); render();
     }, () => { adding = false; render(); }));
   }
@@ -251,23 +399,25 @@
   function buildEditForm(m, onSave, onCancel) {
     const form = make('div', 'display:flex;flex-direction:column;gap:6px;');
     const label = make('input', FIELD); label.placeholder = 'Button name';
+    const subject = make('input', FIELD); subject.placeholder = 'Email subject (optional)';
     const text = make('textarea', FIELD + 'height:110px;resize:vertical;'); text.placeholder = 'Message. Use {name} for the first name.';
-    if (m) { label.value = m.label; text.value = m.text; }
+    if (m) { label.value = m.label; subject.value = m.subject || ''; text.value = m.text; }
     const ok = make('button', BTN, 'Save');
     const cancel = make('button', BTN + 'border-color:#999;color:#666;', 'Cancel');
     ok.type = cancel.type = 'button';
     ok.onclick = () => {
       if (!label.value.trim() || !text.value.trim()) return;
-      onSave(label.value.trim(), text.value);
+      onSave(label.value.trim(), text.value, subject.value.trim());
     };
     cancel.onclick = onCancel;
-    form.append(label, text, ok, cancel);
+    form.append(label, subject, text, ok, cancel);
     requestAnimationFrame(() => label.focus());
     return form;
   }
 
   let leadUpdateQueued = false;
   const queueLeadUpdate = () => {
+    ensureMounted();
     if (leadUpdateQueued) return;
     leadUpdateQueued = true;
     requestAnimationFrame(() => {
@@ -277,8 +427,16 @@
   };
   new MutationObserver(queueLeadUpdate).observe(document.body, { childList: true, subtree: true, characterData: true });
 
-  store.get('messages', (data) => {
-    if (Array.isArray(data.messages)) messages = data.messages;
+  // Built-in messages added after a user already saved their list are appended once; deleting them later sticks.
+  const LEGACY_DEFAULT_LABELS = ['Follow-up', 'Standard', 'Certification form', 'Build It Launch It'];
+  store.get(['messages', 'seededMessageLabels'], (data) => {
+    if (Array.isArray(data.messages)) {
+      messages = data.messages;
+      const seeded = Array.isArray(data.seededMessageLabels) ? data.seededMessageLabels : LEGACY_DEFAULT_LABELS;
+      const added = DEFAULTS.filter((d) => !seeded.includes(d.label) && !messages.some((m) => m.label === d.label));
+      if (added.length) { messages = [...messages, ...added]; save(); }
+    }
+    store.set({ seededMessageLabels: DEFAULTS.map((d) => d.label) });
     render();
     sendLeadName();
   });

@@ -41,8 +41,8 @@
     input.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-  // Returns true once FOLLOWER_NAME is a follower of the open contact.
-  async function ensureFollower() {
+  // Returns true once FOLLOWER_NAME is a follower of the open contact, or with `toggle`, once their follow state has flipped.
+  async function setFollower(toggle = false) {
     const trigger = document.querySelector(TRIGGER_SELECTOR);
     if (!trigger) return false;
     const previousFocus = document.activeElement;
@@ -60,9 +60,10 @@
         }
       }
       if (!checkbox) return false;
-      if (!isChecked(checkbox)) {
+      const follow = toggle ? !isChecked(checkbox) : true;
+      if (isChecked(checkbox) !== follow) {
         checkbox.click();
-        return !!(await waitFor(() => isChecked(checkbox), 1500));
+        return !!(await waitFor(() => isChecked(checkbox) === follow, 1500));
       }
       return true;
     } finally {
@@ -92,7 +93,7 @@
         // Give the page a moment to finish sending before opening the list.
         await sleep(800);
         if (contactKey() !== key) return;
-        if (await ensureFollower()) { handledKey = key; return; }
+        if (await setFollower()) { handledKey = key; return; }
       }
     } catch (error) {
       console.warn('Auto-follow failed.', error);
@@ -104,4 +105,29 @@
   document.addEventListener('click', (event) => {
     if (isSendClick(event.target)) run();
   }, true);
+
+  async function toggleFollower() {
+    if (running) return;
+    running = true;
+    try {
+      // Mark the contact handled so sending a message afterwards doesn't undo a manual removal.
+      if (await setFollower(true)) handledKey = contactKey();
+    } catch (error) {
+      console.warn('Follower toggle failed.', error);
+    } finally {
+      running = false;
+    }
+  }
+
+  // F adds or removes FOLLOWER_NAME anywhere on the page except while typing; the tracker panel forwards it too.
+  window.addEventListener('keydown', (event) => {
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat || event.key.toLowerCase() !== 'f') return;
+    const origin = event.composedPath()[0];
+    if (origin instanceof HTMLElement && (origin.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(origin.tagName))) return;
+    toggleFollower();
+  }, true);
+  const trackerOrigin = new URL(chrome.runtime.getURL('')).origin;
+  window.addEventListener('message', (event) => {
+    if (event.origin === trackerOrigin && event.data?.type === 'setting-tracker:follow') toggleFollower();
+  });
 })();

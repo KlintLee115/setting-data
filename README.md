@@ -21,10 +21,11 @@ Choose one outcome as soon as the call ends. Each choice records one completed c
 | **No answer** | The lead did not pick up. |
 | **Didn't complete intent** | The lead picked up, but you didn't complete intent. |
 | **Didn't complete logical certainty** | You completed intent, but didn't complete logical certainty. |
+| **Didn't pitch** | You completed logical certainty, but didn't pitch. |
 | **Didn't book** | You pitched, but did not book an appointment. |
 | **Booked** | The call resulted in a booking. |
 
-For **Didn't complete intent**, **Didn't complete logical certainty**, and **Didn't book**, a **Why?** box appears. Type a note and press **Enter** to save it, or press **Esc** / choose **Skip** to leave it blank.
+For **Didn't complete intent**, **Didn't complete logical certainty**, **Didn't pitch**, and **Didn't book**, a **Why?** box appears. Type a note and press **Enter** to save it, or press **Esc** / choose **Skip** to leave it blank.
 
 The open GHL contact's name and page link are added to the call automatically.
 
@@ -35,28 +36,32 @@ The open GHL contact's name and page link are added to the call automatically.
 | **N** | Log **No answer**. |
 | **I** | Log **Didn't complete intent**. |
 | **L** | Log **Didn't complete logical certainty**. |
+| **P** | Log **Didn't pitch**. |
 | **B** | Log **Didn't book**. |
 | **H** | Highlight or unhighlight the most recent call for review. |
+| **F** | Add or remove yourself as a follower of the open GHL contact. |
+| **←** / **→** | Press GHL's previous / next arrow button. |
 
-On GHL, these shortcuts work across the page, even when the tracker panel is minimized or on the **Messages** tab. **P** and **B** also open the tracker panel so you can type the reason right away. They are ignored while you type in a field, such as the message composer. On the standalone tracker page, they work when you are not typing in a field.
+On GHL, these shortcuts work across the page, even when the tracker panel is minimized or on the **Messages** tab. **I**, **L**, **P**, and **B** also open the tracker panel so you can type the reason right away. They are ignored while you type in a field, such as the message composer. On the standalone tracker page, they work when you are not typing in a field, except **F** and the arrow keys, which only work on GHL.
 
 ## Review your calls
 
-- **Today's totals** show outbound dials, picked up, each of the three negative outcomes, and booked calls for the selected date. Use the date picker to view another day.
+- **Today's totals** show outbound dials, picked up, each negative outcome, and booked calls for the selected date. Use the date picker to view another day.
 - Calls without a negative outcome count as booked.
 - Use **☆ Review only** to show highlighted calls. Press **H** to highlight the most recent call, or use the review button on any call.
 - Use **✓ Booked only** to show booked calls. You can combine it with **Review only** to find highlighted bookings.
 - The pickup rate is shown below the totals.
+- **Talk time** shows the total, number of timed calls, average, median, 25th, 75th, and 90th percentiles, and longest call for the selected date. It only includes calls you've added a talk time to.
 
-Choose **edit** on a call to change its details, update or clear its optional comment, or manage custom call metrics. Choose **delete** to remove it.
+Choose **edit** on a call to change its details, add or correct its talk time, update or clear its optional comment, or manage custom call metrics. Choose **delete** to remove it. Type talk time as `4:12` or `1:02:03`; a plain number such as `5` means minutes. Calls with a talk time show it in their summary.
 
 ## Automatically follow contacts
 
-When you click the send (paper-plane) button on a GHL contact, the extension attempts to add **Klint Lee** as a follower if they are not already assigned. It does not remove existing followers. To use a different name, change `FOLLOWER_NAME` in [scripts/auto-follow.js](scripts/auto-follow.js).
+When you click the send (paper-plane) button on a GHL contact, the extension attempts to add **Klint Lee** as a follower if they are not already assigned. It does not remove existing followers. Press **F** to add or remove yourself by hand; sending a message afterwards won't re-add you on that contact. To use a different name, change `FOLLOWER_NAME` in [scripts/auto-follow.js](scripts/auto-follow.js).
 
 ## Message suggestions
 
-Open the **Messages** tab to use the built-in suggestions: Follow-up, Standard, Certification form, and Build It Launch It. Choosing a suggestion fills it into the conversation composer with the contact's first name. Use **+ Add message** to create your own suggestion; use `{name}` where you want the first name inserted.
+Open the **Messages** tab to use the built-in suggestions: Follow-up, Standard, Certification form, Build It Launch It, and AICC prep. Choosing a suggestion fills it into the conversation composer with the contact's first name. When the email composer is open, it fills the email body and, if the suggestion has one, the subject. Use **+ Add message** to create your own suggestion; use `{name}` where you want the first name inserted, and add an optional email subject.
 
 ## Data and upgrading
 
