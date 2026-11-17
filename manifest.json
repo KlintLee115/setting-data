@@ -11,12 +11,12 @@
         "https://*.gohighlevel.com/*",
         "https://*.msgsndr.com/*"
       ],
-      "js": ["scripts/message-suggestions.js", "scripts/auto-follow.js"],
+      "js": ["scripts/sites.js", "scripts/message-suggestions.js", "scripts/auto-follow.js"],
       "run_at": "document_idle"
     },
     {
       "matches": ["https://*.aloware.com/*", "https://*.aloware.io/*"],
-      "js": ["scripts/message-suggestions.js"],
+      "js": ["scripts/sites.js", "scripts/message-suggestions.js"],
       "run_at": "document_idle"
     }
   ],

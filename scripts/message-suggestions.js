@@ -2,8 +2,8 @@
   if (window.__ghlMessageSuggestions) return;
   window.__ghlMessageSuggestions = true;
 
-  // The panel also runs on Aloware; GHL-only page automation (lead names, chevron arrows) is skipped there.
-  const ON_GHL = /(^|\.)(gohighlevel|msgsndr)\.com$/.test(window.location.hostname);
+  // Page-specific behaviour (lead names, message boxes, contact navigation) comes from scripts/sites.js.
+  const site = globalThis.SettingTrackerSite;
 
   // {name} is replaced with the lead's first name.
   const DEFAULTS = [
@@ -57,187 +57,8 @@
       ].join('\n')
     }
   ];
-  const HEADER_SELECTORS = [
-    '[data-testid="CENTRALPANEL_NAME"]',
-    '[data-testid="CONTACT_NAME"]',
-    '[data-testid="CONVERSATION_CONTACT_NAME"]',
-    '[data-testid*="contact-name" i]',
-    '[data-testid*="contact_name" i]',
-    '[data-testid*="contactname" i]',
-    '[data-testid*="conversation"] [data-testid*="name" i]',
-    '[data-testid*="contact"] [data-testid*="name" i]',
-    '[data-testid*="conversation"] h1',
-    '[data-testid*="conversation"] h2',
-    '[data-testid*="contact"] h1',
-    '[data-testid*="contact"] h2',
-    '[class*="conversation"] h1',
-    '[class*="conversation"] h2'
-  ];
 
-  const normalizeName = (value) => value.replace(/\s+/g, ' ').replace(/\s+\.$/, '').trim();
-  const isLikelyLeadName = (value) => /^[A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,3}$/.test(value)
-    && !/^(conversation|messages|inbox|contacts?)$/i.test(value);
-
-  function getLeadName() {
-    if (!ON_GHL) {
-      // Aloware shows the contact's name in a dedicated element; don't fall back to page headings there.
-      const element = [...document.querySelectorAll('.alw-contact-name')].find((el) => el.getClientRects().length)
-        || document.querySelector('.alw-contact-name');
-      return element ? normalizeName(element.textContent || '') : '';
-    }
-    for (const selector of HEADER_SELECTORS) {
-      const element = document.querySelector(selector);
-      const name = element ? normalizeName(element.textContent || '') : '';
-      if (name && name.length <= 120 && isLikelyLeadName(name)) return name;
-    }
-    const heading = [...document.querySelectorAll('h1, h2, [role="heading"]')]
-      .map((element) => normalizeName(element.textContent || ''))
-      .find((text) => text && text.length <= 120 && isLikelyLeadName(text));
-    return heading || '';
-  }
-
-  function getAlowarePhone() {
-    const element = [...document.querySelectorAll('.alw-contact-phone-number')].find((el) => el.getClientRects().length)
-      || document.querySelector('.alw-contact-phone-number');
-    return element ? element.textContent.replace(/\s+/g, '').trim() : '';
-  }
-
-  const buildMessage =(text) => text.split('{name}').join(getLeadName().split(/\s+/)[0] || 'there');
-
-  const isVisible = (el) => Boolean(el && el.getClientRects().length);
-
-  function setInputValue(input, value) {
-    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')?.set;
-    if (setter) setter.call(input, value); else input.value = value;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-
-  // GHL's email composer: a subject input plus a ProseMirror rich-text body.
-  const EMAIL_EDITOR = '.ProseMirror[contenteditable="true"]';
-  function getEmailEditor() {
-    const editors = [...document.querySelectorAll(EMAIL_EDITOR)];
-    const fromParagraph = document.querySelector('p.custom-newline')?.closest('[contenteditable="true"]');
-    if (fromParagraph) editors.unshift(fromParagraph);
-    return editors.find(isVisible) || null;
-  }
-  // The email editor `node` is in, if any (GHL's editor may lack the .ProseMirror class).
-  function emailEditorOf(node) {
-    const el = node instanceof Element ? node : node?.parentElement;
-    const editor = el?.closest('[contenteditable="true"]');
-    return editor && (editor.matches(EMAIL_EDITOR) || editor.querySelector('p.custom-newline')) ? editor : null;
-  }
-
-  // GHL's editor turns a pasted paragraph that is only a YouTube link into a video embed. Starting such a
-  // paragraph with a non-breaking space means it is no longer "just the link", so it stays a plain URL.
-  const YOUTUBE_URL = /https?:\/\/(?:[\w-]+\.)?(?:youtube\.com|youtu\.be|youtube-nocookie\.com)\//i;
-  const escapeHtml = (value) => value.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-  const linkify = (line) => escapeHtml(line).replace(/https?:\/\/[^\s<]+/g, (url) => `<a href="${url}">${url}</a>`);
-  function toEmailHtml(text) {
-    return text.replace(/\r\n?/g, '\n').split('\n').map((line) => {
-      if (!line.trim()) return '<p><br></p>';
-      const prefix = YOUTUBE_URL.test(line) && /^\S+$/.test(line.trim()) ? '&nbsp;' : '';
-      return `<p>${prefix}${linkify(line.trim())}</p>`;
-    }).join('');
-  }
-
-  // Pastes text through the editor's own paste handling, which keeps its state in sync with what is shown.
-  let pastingOurs = false;
-  function pasteIntoEditor(editor, text) {
-    const data = new DataTransfer();
-    data.setData('text/html', toEmailHtml(text));
-    data.setData('text/plain', text);
-    const paste = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
-    pastingOurs = true;
-    try {
-      editor.dispatchEvent(paste);
-    } finally {
-      pastingOurs = false;
-    }
-    return paste.defaultPrevented;
-  }
-
-  // Remembers the last text box the user clicked into on the page (outside this panel), so messages can
-  // be filled into composers this script has no selector for, such as Aloware's.
-  let lastEditable = null;
-  const isEditable = (el) => el instanceof HTMLElement && (el.isContentEditable
-    || el.tagName === 'TEXTAREA'
-    || (el.tagName === 'INPUT' && ['text', 'search', ''].includes((el.getAttribute('type') || '').toLowerCase())));
-  document.addEventListener('focusin', (event) => {
-    const path = event.composedPath();
-    const target = path[0];
-    if (!isEditable(target) || target.id === 'subject-input' || target.dataset.testid === 'email-subject-input' || path.includes(host)) return;
-    lastEditable = target.isContentEditable ? (target.closest('[contenteditable="true"]') || target) : target;
-  }, true);
-
-  // Replaces a generic contenteditable's text, preferring the editor's own paste handling.
-  function fillContentEditable(editor, message) {
-    editor.focus();
-    const range = document.createRange();
-    range.selectNodeContents(editor);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-    setTimeout(() => {
-      if (!pasteIntoEditor(editor, message)) document.execCommand('insertText', false, message);
-    }, 0);
-  }
-
-  // Replaces the email editor's content with `message`.
-  function fillEmailBody(editor, message) {
-    editor.focus();
-    const range = document.createRange();
-    range.selectNodeContents(editor);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-    // Let the editor pick up the new selection before pasting over it.
-    setTimeout(() => pasteIntoEditor(editor, message), 0);
-  }
-
-  // When the user pastes text containing a YouTube link, re-paste it with the link protected from embedding.
-  window.addEventListener('paste', (event) => {
-    if (pastingOurs) return;
-    const editor = emailEditorOf(event.target);
-    const text = event.clipboardData?.getData('text/plain') || '';
-    if (!editor || !YOUTUBE_URL.test(text)) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    pasteIntoEditor(editor, text);
-  }, true);
-
-  function fillComposer(message, subject) {
-    const emailEditor = getEmailEditor();
-    if (emailEditor) {
-      const subjectInput = document.querySelector('#subject-input');
-      if (subject && isVisible(subjectInput)) setInputValue(subjectInput, subject);
-      fillEmailBody(emailEditor, message);
-      return true;
-    }
-    // Aloware: plain textareas for email (with a separate subject input) and SMS.
-    const alowareEmail = [...document.querySelectorAll('[data-testid="email-message-body-input"]')].find(isVisible);
-    if (alowareEmail) {
-      const alowareSubject = [...document.querySelectorAll('[data-testid="email-subject-input"]')].find(isVisible);
-      if (subject && alowareSubject) setInputValue(alowareSubject, subject);
-      setInputValue(alowareEmail, message);
-      alowareEmail.focus();
-      return true;
-    }
-    const known = ['[data-testid="sms-message-body-input"]', '#conv-composer-textarea-input', 'input[placeholder="Type a message"]', 'textarea[placeholder="Type a message"]']
-      .flatMap((selector) => [...document.querySelectorAll(selector)]);
-    const composer = known.find(isVisible)
-      || (lastEditable?.isConnected && isVisible(lastEditable) ? lastEditable : null)
-      || [...document.querySelectorAll('textarea')].find((el) => isVisible(el) && /message|type|text|reply|sms/i.test(el.placeholder || ''))
-      || known[0];
-    if (!composer) return false;
-    if (composer.isContentEditable) {
-      fillContentEditable(composer, message);
-      return true;
-    }
-    setInputValue(composer, message);
-    composer.focus();
-    return true;
-  }
+  const buildMessage = (text) => text.split('{name}').join(site.getLeadName().split(/\s+/)[0] || 'there');
 
   let messages = DEFAULTS;
   const store = chrome.storage.local;
@@ -260,17 +81,6 @@
   const BTN = 'padding:6px 10px;border:1px solid #245a95;border-radius:5px;background:#fff;color:#245a95;cursor:pointer;text-align:left;';
   const FIELD = 'width:100%;box-sizing:border-box;padding:4px;border:1px solid #c5ccd8;border-radius:4px;font:12px Arial,sans-serif;';
   const MAX_VISIBLE_MESSAGES = 6;
-  // Arrow keys press GHL's previous/next chevron icons, matched by their path since the buttons have no labels.
-  const CHEVRONS = { arrowleft: 'path[d="M15 18l-6-6 6-6"]', arrowright: 'path[d="M9 18l6-6-6-6"]' };
-  function clickChevron(key) {
-    if (!ON_GHL) return false;
-    const icon = [...document.querySelectorAll(CHEVRONS[key])]
-      .map((path) => path.closest('svg'))
-      .find((svg) => svg && svg.getClientRects().length);
-    if (!icon) return false;
-    icon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return true;
-  }
   let adding = false, editingIndex = null, status = '';
   let activeView = 'tracker';
   let minimized = false;
@@ -353,7 +163,7 @@
   window.addEventListener('message', (event) => {
     if (event.source !== trackerFrame.contentWindow) return;
     if (event.data?.type === 'setting-tracker:focus') trackerFrame.focus();
-    if (event.data?.type === 'setting-tracker:navigate' && CHEVRONS[event.data.key]) clickChevron(event.data.key);
+    if (event.data?.type === 'setting-tracker:navigate' && typeof event.data.key === 'string') site.navigate(event.data.key);
   });
   // N/I/L/P/B/H work anywhere on the GHL page except while typing; they are forwarded to the tracker.
   window.addEventListener('keydown', (event) => {
@@ -363,8 +173,8 @@
     const origin = event.composedPath()[0];
     if (origin === trackerFrame) return;
     if (origin instanceof HTMLElement && (origin.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(origin.tagName))) return;
-    if (CHEVRONS[key]) {
-      if (clickChevron(key)) event.preventDefault();
+    if (key === 'arrowleft' || key === 'arrowright') {
+      if (site.navigate(key)) event.preventDefault();
       return;
     }
     // I/L/P/B open the tracker so the "Why?" box is visible and can take focus.
@@ -380,10 +190,8 @@
   makeDraggable(restore, restore);
 
   function sendLeadName(force = false) {
-    // GHL calls keep a link back to the contact; Aloware calls keep the contact's phone number instead.
-    const name = getLeadName();
-    const url = ON_GHL ? window.location.href : '';
-    const phone = ON_GHL ? '' : getAlowarePhone();
+    const name = site.getLeadName();
+    const { url, phone } = site.getLeadRef();
     const key = `${url}|${phone}`;
     if (!force && name === lastLeadName && key === lastLeadUrl && trackerFrame.contentWindow) return;
     lastLeadName = name;
@@ -418,7 +226,7 @@
       use.type = 'button';
       use.title = (m.subject ? `Subject: ${buildMessage(m.subject)}\n\n` : '') + buildMessage(m.text);
       use.onclick = () => {
-        status = fillComposer(buildMessage(m.text), m.subject ? buildMessage(m.subject) : '') ? '' : 'Click into the message box first, then pick a message.';
+        status = site.fillComposer(buildMessage(m.text), m.subject ? buildMessage(m.subject) : '') ? '' : 'Click into the message box first, then pick a message.';
         render();
       };
       const edit = make('button', BTN + 'flex:0 0 auto;padding:6px 8px;', '✎');
