@@ -44,6 +44,10 @@ The open GHL contact's name and page link are added to the call automatically.
 
 On GHL, these shortcuts work across the page, even when the tracker panel is minimized or on the **Messages** tab. **I**, **L**, **P**, and **B** also open the tracker panel so you can type the reason right away. They are ignored while you type in a field, such as the message composer. On the standalone tracker page, they work when you are not typing in a field, except **F** and the arrow keys, which only work on GHL.
 
+### Using Aloware
+
+The tracker panel and its shortcuts also appear on Aloware pages (`*.aloware.io`, `*.aloware.com`), so you can log calls while dialing there. On Aloware, the contact's phone number is logged in place of the lead name. GHL links and the arrow-key contact navigation only work on GHL.
+
 ## Review your calls
 
 - **Today's totals** show outbound dials, picked up, each negative outcome, and booked calls for the selected date. Use the date picker to view another day.

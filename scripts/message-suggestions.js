@@ -2,6 +2,9 @@
   if (window.__ghlMessageSuggestions) return;
   window.__ghlMessageSuggestions = true;
 
+  // The panel also runs on Aloware; GHL-only page automation (lead names, chevron arrows) is skipped there.
+  const ON_GHL = /(^|\.)(gohighlevel|msgsndr)\.com$/.test(window.location.hostname);
+
   // {name} is replaced with the lead's first name.
   const DEFAULTS = [
     { label: 'Follow-up', text: "Heyy {name}, Klint here from Alicia Lyttle's AI team 😊 \n\n did u get my msg?" },
@@ -87,7 +90,13 @@
     return heading || '';
   }
 
-  const buildMessage = (text) => text.split('{name}').join(getLeadName().split(/\s+/)[0] || 'there');
+  function getAlowarePhone() {
+    const element = [...document.querySelectorAll('.alw-contact-phone-number')].find((el) => el.getClientRects().length)
+      || document.querySelector('.alw-contact-phone-number');
+    return element ? element.textContent.replace(/\s+/g, '').trim() : '';
+  }
+
+  const buildMessage =(text) => text.split('{name}').join(getLeadName().split(/\s+/)[0] || 'there');
 
   const isVisible = (el) => Boolean(el && el.getClientRects().length);
 
@@ -204,6 +213,7 @@
   // Arrow keys press GHL's previous/next chevron icons, matched by their path since the buttons have no labels.
   const CHEVRONS = { arrowleft: 'path[d="M15 18l-6-6 6-6"]', arrowright: 'path[d="M9 18l6-6-6-6"]' };
   function clickChevron(key) {
+    if (!ON_GHL) return false;
     const icon = [...document.querySelectorAll(CHEVRONS[key])]
       .map((path) => path.closest('svg'))
       .find((svg) => svg && svg.getClientRects().length);
@@ -320,7 +330,8 @@
   makeDraggable(restore, restore);
 
   function sendLeadName(force = false) {
-    const name = getLeadName();
+    // GHL shows the lead's name; Aloware identifies the contact by phone number, so that is used instead.
+    const name = ON_GHL ? getLeadName() : getAlowarePhone();
     const url = window.location.href;
     if (!force && name === lastLeadName && url === lastLeadUrl && trackerFrame.contentWindow) return;
     lastLeadName = name;

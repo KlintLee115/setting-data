@@ -13,6 +13,11 @@
       ],
       "js": ["scripts/message-suggestions.js", "scripts/auto-follow.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://*.aloware.com/*", "https://*.aloware.io/*"],
+      "js": ["scripts/message-suggestions.js"],
+      "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
@@ -21,7 +26,8 @@
       "matches": [
         "https://app.gohighlevel.com/*",
         "https://*.gohighlevel.com/*",
-        "https://*.msgsndr.com/*"
+        "https://*.msgsndr.com/*",
+        "https://*.aloware.com/*", "https://*.aloware.io/*"
       ]
     }
   ]
